@@ -176,6 +176,15 @@ public class MainActivity extends Activity {
         tvDetailSynopsis.setFocusable(true);
         tvDetailSynopsis.setClickable(true);
         
+        tvDetailSynopsis.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (detailPanelManager != null && detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().isEnabled()) {
+                    detailPanelManager.getPlayButton().requestFocus();
+                }
+            }
+        });
+        
         tvDetailSynopsis.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {

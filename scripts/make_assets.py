@@ -1,7 +1,7 @@
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-WORKDIR = "/home/ubuntu/gimy_tv_app"
+WORKDIR = "/home/ubuntu/gimy-tv-app"
 res_drawable_dir = os.path.join(WORKDIR, "app", "src", "main", "res", "drawable")
 os.makedirs(res_drawable_dir, exist_ok=True)
 

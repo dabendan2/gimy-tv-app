@@ -24,7 +24,7 @@
 專案已依循標準 GitHub Android 開發規範進行結構重構，實現極致乾淨的代碼隔離：
 
 ```directory
-gimy_tv_app/
+gimy-tv-app/
 ├── .gitignore              # 過濾二進位編譯產物與臨時截圖
 ├── README.md               # 專案說明書
 ├── my-release-key.jks      # 電視端專屬簽章金鑰 (Keystore)

@@ -11,6 +11,56 @@ import java.util.HashMap;
 public class ImageLoader {
     private static final HashMap<String, Bitmap> imageCache = new HashMap<>();
 
+    public interface ImageLoadCallback {
+        void onImageLoaded(Bitmap bitmap);
+    }
+
+    public static void loadImageBitmap(final String url, final ImageLoadCallback callback) {
+        if (url == null || url.isEmpty()) {
+            if (callback != null) callback.onImageLoaded(null);
+            return;
+        }
+        
+        String formattedUrlTemp = url.trim();
+        if (formattedUrlTemp.startsWith("//")) {
+            formattedUrlTemp = "https:" + formattedUrlTemp;
+        } else if (formattedUrlTemp.startsWith("/")) {
+            formattedUrlTemp = "https://gimyplus.com" + formattedUrlTemp;
+        }
+        final String finalUrl = formattedUrlTemp;
+
+        if (imageCache.containsKey(finalUrl)) {
+            if (callback != null) callback.onImageLoaded(imageCache.get(finalUrl));
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL connUrl = new URL(finalUrl);
+                    HttpURLConnection conn = (HttpURLConnection) connUrl.openConnection();
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                    conn.setDoInput(true);
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    conn.connect();
+                    
+                    InputStream is = conn.getInputStream();
+                    final Bitmap bitmap = BitmapFactory.decodeStream(is);
+                    if (bitmap != null) {
+                        imageCache.put(finalUrl, bitmap);
+                    }
+                    if (callback != null) {
+                        callback.onImageLoaded(bitmap);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("GimyHorror", "Image load error for: " + finalUrl, e);
+                    if (callback != null) callback.onImageLoaded(null);
+                }
+            }
+        }).start();
+    }
+
     public static void loadImage(final String url, final ImageView imageView) {
         if (url == null || url.isEmpty()) return;
         

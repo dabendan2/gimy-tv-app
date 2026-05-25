@@ -4,7 +4,7 @@ import shutil
 import glob
 import sys
 
-WORKDIR = "/home/ubuntu/gimy_tv_app"
+WORKDIR = "/home/ubuntu/gimy-tv-app"
 os.chdir(WORKDIR)
 
 print("=================================================")

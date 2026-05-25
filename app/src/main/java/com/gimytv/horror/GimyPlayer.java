@@ -237,6 +237,24 @@ public class GimyPlayer {
             gimyMediaSession.setActive(true);
             gimyMediaSession.updateMediaMetadata(selectedMovieTitle != null && !selectedMovieTitle.isEmpty() ? selectedMovieTitle : "Gimy TV", -1);
             gimyMediaSession.updatePlaybackState(PlaybackState.STATE_BUFFERING);
+
+            final String currentMovieId = selectedMovieId;
+            final String currentTitle = selectedMovieTitle;
+            ImageLoader.loadImageBitmap(selectedMovieImageUrl, new ImageLoader.ImageLoadCallback() {
+                @Override
+                public void onImageLoaded(final android.graphics.Bitmap bitmap) {
+                    if (bitmap != null && gimyMediaSession != null && currentMovieId.equals(selectedMovieId)) {
+                        activity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (currentMovieId.equals(selectedMovieId)) {
+                                    gimyMediaSession.updateMediaMetadata(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "Gimy TV", -1, bitmap);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
         }
 
         videoView.setMediaController(null); // Completely disable default controller
@@ -254,8 +272,25 @@ public class GimyPlayer {
                 }
                 videoView.start();
                 if (gimyMediaSession != null) {
-                    gimyMediaSession.updateMediaMetadata(selectedMovieTitle, videoView.getDuration());
                     gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PLAYING);
+                    final String currentMovieId = selectedMovieId;
+                    final String currentTitle = selectedMovieTitle;
+                    final int duration = videoView.getDuration();
+                    ImageLoader.loadImageBitmap(selectedMovieImageUrl, new ImageLoader.ImageLoadCallback() {
+                        @Override
+                        public void onImageLoaded(final android.graphics.Bitmap bitmap) {
+                            if (gimyMediaSession != null && currentMovieId.equals(selectedMovieId)) {
+                                activity.runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (currentMovieId.equals(selectedMovieId)) {
+                                            gimyMediaSession.updateMediaMetadata(currentTitle, duration, bitmap);
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    });
                 }
                 // Start progress timeline loop
                 seekHandler.removeCallbacks(updateProgressRunnable);

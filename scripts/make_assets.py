@@ -160,7 +160,7 @@ banner.save(os.path.join(res_drawable_dir, "tv_banner.png"))
 print("Generating App Icon (512x512)...")
 # Flat solid dark background to make the colored font pop perfectly as requested
 icon = Image.new("RGB", (512, 512), COLOR_BG_DARK)
-draw_single_row_gimy(icon, target_width=440, y_offset=0)
+draw_two_rows_gimy(icon, font_size=200, line_spacing_factor=1.0, y_offset=0)
 icon.save(os.path.join(res_drawable_dir, "ic_launcher.png"))
 
 print("Assets successfully generated in res/drawable/!")

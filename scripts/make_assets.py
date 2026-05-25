@@ -158,10 +158,9 @@ banner.save(os.path.join(res_drawable_dir, "tv_banner.png"))
 
 # ==================== 2. Generate Square Icon (512x512) ====================
 print("Generating App Icon (512x512)...")
-icon = create_radial_gradient(512, 512, COLOR_BG_RED_GLOW, COLOR_BG_DARK)
-# Square launcher icon looks incredibly balanced with Gi on Row 1, my on Row 2
-# Sized beautifully at 170 to perfectly fit the Android circular crop safe area
-draw_two_rows_gimy(icon, font_size=170, line_spacing_factor=0.9, y_offset=-40)
+# Flat solid dark background to make the colored font pop perfectly as requested
+icon = Image.new("RGB", (512, 512), COLOR_BG_DARK)
+draw_single_row_gimy(icon, target_width=440, y_offset=0)
 icon.save(os.path.join(res_drawable_dir, "ic_launcher.png"))
 
 print("Assets successfully generated in res/drawable/!")

@@ -287,7 +287,7 @@ public class GimyPlayer {
             int dur = videoView.getDuration();
             if (dur > 0 && pos > 0) {
                 movieStore.savePlaybackProgress(selectedMovieId, pos, dur);
-                TvWatchNextHelper.updateWatchNext(activity, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
+                TvWatchNextHelper.updateWatchNext(activity, movieStore, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
             }
         }
     }

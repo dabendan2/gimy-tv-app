@@ -252,7 +252,7 @@ public class GimyPlayer {
                             public void run() {
                                 if (currentMovieId.equals(selectedMovieId)) {
                                     Log.d(TAG, "MediaSession metadata updated with poster bitmap.");
-                                    gimyMediaSession.updateMediaMetadata(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "Gimy TV", -1, bitmap);
+                                    gimyMediaSession.updateMediaMetadata(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "Gimy TV", -1, bitmap, selectedMovieImageUrl);
                                 }
                             }
                         });
@@ -291,7 +291,7 @@ public class GimyPlayer {
                                     @Override
                                     public void run() {
                                         if (currentMovieId.equals(selectedMovieId)) {
-                                            gimyMediaSession.updateMediaMetadata(currentTitle, duration, bitmap);
+                                            gimyMediaSession.updateMediaMetadata(currentTitle, duration, bitmap, selectedMovieImageUrl);
                                         }
                                     }
                                 });

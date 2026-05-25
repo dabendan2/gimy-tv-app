@@ -98,10 +98,6 @@ public class GimyMediaSession {
         }
     }
 
-    public void updateMediaMetadata(String title, long durationMs) {
-        updateMediaMetadata(title, durationMs, null);
-    }
-
     private android.graphics.Bitmap scaleBitmap(android.graphics.Bitmap src, int maxDimension) {
         if (src == null) return null;
         int width = src.getWidth();
@@ -126,16 +122,42 @@ public class GimyMediaSession {
         }
     }
 
+    public void updateMediaMetadata(String title, long durationMs) {
+        updateMediaMetadata(title, durationMs, null, null);
+    }
+
     public void updateMediaMetadata(final String title, final long durationMs, final android.graphics.Bitmap coverBitmap) {
-        Log.i(TAG, "MediaSession updateMediaMetadata: Title=" + title + " | Duration=" + durationMs + " ms");
+        updateMediaMetadata(title, durationMs, coverBitmap, null);
+    }
+
+    public void updateMediaMetadata(final String title, final long durationMs, final android.graphics.Bitmap coverBitmap, final String imageUrl) {
+        Log.i(TAG, "MediaSession updateMediaMetadata: Title=" + title + " | Duration=" + durationMs + " ms | Bitmap=" + (coverBitmap != null ? (coverBitmap.getWidth() + "x" + coverBitmap.getHeight()) : "null") + " | URL=" + imageUrl);
         if (mediaSession != null) {
             MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title)
+                .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, title)
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, "Gimy 鬼魅劇場")
+                .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, "Gimy 鬼魅劇場")
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, "Gimy 鬼魅劇場")
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs);
+
+            if (imageUrl != null && !imageUrl.isEmpty()) {
+                String formattedUrl = imageUrl.trim();
+                if (formattedUrl.startsWith("//")) {
+                    formattedUrl = "https:" + formattedUrl;
+                } else if (formattedUrl.startsWith("/")) {
+                    formattedUrl = "https://gimyplus.com" + formattedUrl;
+                }
+                Log.d(TAG, "MediaSession: Putting artwork URIs: " + formattedUrl);
+                metaBuilder.putString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI, formattedUrl);
+                metaBuilder.putString(MediaMetadata.METADATA_KEY_ART_URI, formattedUrl);
+                metaBuilder.putString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI, formattedUrl);
+            }
+
             if (coverBitmap != null) {
                 android.graphics.Bitmap scaled = scaleBitmap(coverBitmap, 320); // 320px is perfect for low-latency Binder transit
                 if (scaled != null) {
+                    Log.d(TAG, "MediaSession: Putting scaled bitmap of size " + scaled.getWidth() + "x" + scaled.getHeight());
                     metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, scaled);
                     metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_ART, scaled);
                     metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, scaled);

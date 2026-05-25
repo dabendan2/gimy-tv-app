@@ -23,7 +23,6 @@ The project implements standard Single Responsibility Principle (SRP) separation
 *   **`MainActivity.java`**: Dedicated solely to UI rendering, navigation grid, and receiving deep link intents.
 *   **`GimyPlayer.java`**: Dedicated to video playback state, media controls, seeking, scrubbing, and key event delegation.
 *   **`GimyMediaSession.java`**: Dedicated to Android `MediaSession` lifecycle, remote control notifications, metadata broadcast, and hardware volume routing.
-*   **`TvWatchNextHelper.java`**: Dedicated to updating and removing entries in the Android TV system "Watch Next / 繼續觀賞" row.
 *   **`MovieStore.java`**: Persistent local database using `SharedPreferences` for movie bookmarking states and playback milliseconds.
 *   **`GimyParser.java`**: HTML parser and stream link extractor for `gimyplus.com`.
 *   **`ImageLoader.java`**: Non-blocking asynchronous network image downloader with local RAM caching.
@@ -100,5 +99,4 @@ Instead of bloated custom `VolumeProvider` hacks that capture volume keys manual
 ## ⚠️ Known Pitfalls & Dev Guidelines
 
 1.  **D-Pad Navigation Traps**: All interactive layout panels built programmatically (like `DetailPanelManager`) must define focus styling change listeners and preserve focus targets (e.g. `tvDetailSynopsis.setFocusable(true)`).
-2.  **Watch Next Sandbox Restrictions**: Writing to Android TV's system `watch_next_program` using raw selections is blocked by the OS sandbox. You **must delete by appended system ID** via `ContentUris.withAppendedId()` instead.
-3.  **M3U8 Parse Failures**: Gimyplus occasionally obfuscates `player_data` JSON under different script tags. If streaming fails, inspect `GimyParser.parseM3U8Url()` immediately for pattern mismatches.
+2.  **M3U8 Parse Failures**: Gimyplus occasionally obfuscates `player_data` JSON under different script tags. If streaming fails, inspect `GimyParser.parseM3U8Url()` immediately for pattern mismatches.

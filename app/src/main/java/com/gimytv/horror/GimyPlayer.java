@@ -332,7 +332,6 @@ public class GimyPlayer {
             Log.d(TAG, "💾 savePlaybackProgress triggered - ID: " + selectedMovieId + " | Pos: " + pos + " ms | Dur: " + dur + " ms");
             if (dur > 0 && pos > 0) {
                 movieStore.savePlaybackProgress(selectedMovieId, pos, dur);
-                TvWatchNextHelper.updateWatchNext(activity, movieStore, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
             }
         }
     }

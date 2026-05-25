@@ -9,6 +9,7 @@ import android.media.AudioManager;
 import android.media.VolumeProvider;
 
 public class GimyMediaSession {
+    private static final String TAG = "GimyHorror_Media";
 
     public interface PlaybackController {
         void onPlayAction();
@@ -29,11 +30,13 @@ public class GimyMediaSession {
     }
 
     private void initMediaSession() {
+        Log.i(TAG, "Initializing MediaSession for Gimy TV App.");
         mediaSession = new MediaSession(context, "GimyTV");
         mediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
         mediaSession.setCallback(new MediaSession.Callback() {
             @Override
             public void onPlay() {
+                Log.i(TAG, "MediaSession callback: onPlay() received.");
                 if (controller != null) {
                     controller.onPlayAction();
                 }
@@ -41,6 +44,7 @@ public class GimyMediaSession {
 
             @Override
             public void onPause() {
+                Log.i(TAG, "MediaSession callback: onPause() received.");
                 if (controller != null) {
                     controller.onPauseAction();
                 }
@@ -48,6 +52,7 @@ public class GimyMediaSession {
 
             @Override
             public void onStop() {
+                Log.i(TAG, "MediaSession callback: onStop() received.");
                 if (controller != null) {
                     controller.onStopAction();
                 }
@@ -55,6 +60,7 @@ public class GimyMediaSession {
 
             @Override
             public void onSeekTo(long pos) {
+                Log.i(TAG, "MediaSession callback: onSeekTo(" + pos + ") received.");
                 if (controller != null) {
                     controller.onSeekToAction(pos);
                 }
@@ -73,12 +79,14 @@ public class GimyMediaSession {
     }
 
     public void setActive(boolean active) {
+        Log.i(TAG, "MediaSession setActive(" + active + ") called.");
         if (mediaSession != null) {
             mediaSession.setActive(active);
         }
     }
 
     public void updatePlaybackState(int state) {
+        Log.d(TAG, "MediaSession updatePlaybackState(" + state + ") called.");
         if (mediaSession != null) {
             long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP | PlaybackState.ACTION_SEEK_TO;
             long position = (controller != null) ? controller.getCurrentPosition() : 0;
@@ -113,11 +121,13 @@ public class GimyMediaSession {
         try {
             return android.graphics.Bitmap.createScaledBitmap(src, newWidth, newHeight, true);
         } catch (Exception e) {
+            Log.e(TAG, "scaleBitmap Exception: failed to scale album art cover bitmap.", e);
             return src;
         }
     }
 
     public void updateMediaMetadata(final String title, final long durationMs, final android.graphics.Bitmap coverBitmap) {
+        Log.i(TAG, "MediaSession updateMediaMetadata: Title=" + title + " | Duration=" + durationMs + " ms");
         if (mediaSession != null) {
             MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title)
@@ -136,6 +146,7 @@ public class GimyMediaSession {
     }
 
     public void release() {
+        Log.i(TAG, "Releasing MediaSession.");
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;

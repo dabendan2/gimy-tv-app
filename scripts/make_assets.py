@@ -106,55 +106,50 @@ def draw_two_rows_gimy(image, font_size, y_offset=0):
         
     spacing = int(font_size * 0.05)
     
-    # 1. Calculate Row 1 width ("G", "i")
-    w1 = 0
-    for char, color in row1:
-        bbox = draw.textbbox((0, 0), char, font=font)
-        w = bbox[2] - bbox[0]
-        w1 += w
-    w1 += spacing * (len(row1) - 1)
-    
-    # 2. Calculate Row 2 width ("m", "y")
-    w2 = 0
-    for char, color in row2:
-        bbox = draw.textbbox((0, 0), char, font=font)
-        w = bbox[2] - bbox[0]
-        w2 += w
-    w2 += spacing * (len(row2) - 1)
-    
-    # --- Dynamic Perfect Vertical Ink Centering ---
+    # --- Dynamic Perfect 2x2 Grid Centering (Horizontal & Vertical) ---
     bbox_G = draw.textbbox((0, 0), "G", font=font)
     bbox_i = draw.textbbox((0, 0), "i", font=font)
+    bbox_m = draw.textbbox((0, 0), "m", font=font)
+    bbox_y = draw.textbbox((0, 0), "y", font=font)
+    
+    # 1. Horizontal Calculations
+    col_dist = int(font_size * 0.95) # optimal column separation
+    
+    w_G_half = (bbox_G[2] - bbox_G[0]) / 2.0
+    w_m_half = (bbox_m[2] - bbox_m[0]) / 2.0
+    left_ext = max(w_G_half, w_m_half)
+    
+    w_i_half = (bbox_i[2] - bbox_i[0]) / 2.0
+    w_y_half = (bbox_y[2] - bbox_y[0]) / 2.0
+    right_ext = max(w_i_half, w_y_half)
+    
+    # Solved equations for Left padding == Right padding:
+    cx2 = (image.width - right_ext + left_ext + col_dist) / 2.0
+    cx1 = cx2 - col_dist
+    
+    # 2. Vertical Calculations
     t1 = min(bbox_G[1], bbox_i[1]) # top of row 1 ink
     b1 = max(bbox_G[3], bbox_i[3]) # bottom of row 1 ink
     
-    bbox_m = draw.textbbox((0, 0), "m", font=font)
-    bbox_y = draw.textbbox((0, 0), "y", font=font)
     t2 = min(bbox_m[1], bbox_y[1]) # top of row 2 ink
     b2 = max(bbox_m[3], bbox_y[3]) # bottom of row 2 ink
     
-    # Let y2 = y1 + dy. To make it compact, let the gap between Row 1 bottom and Row 2 top be 1 pixel
+    # Compact vertical line gap (1 pixel gap between bottom of Row 1 and top of Row 2)
     dy = b1 - t2 + 1
     
-    # Center overall ink: (y1 + t1) = image.height - (y1 + dy + b2)
+    # Solved equations for Top padding == Bottom padding:
     y1 = (image.height - dy - b2 - t1) // 2 + y_offset
     y2 = y1 + dy
     
-    # Draw Row 1 ("Gi")
-    x1 = (image.width - w1) // 2
-    current_x = x1
-    for char, color in row1:
-        draw.text((current_x, y1), char, fill=color, font=font)
-        bbox = draw.textbbox((current_x, y1), char, font=font)
-        current_x += (bbox[2] - bbox[0]) + spacing
-        
-    # Draw Row 2 ("my")
-    x2 = (image.width - w2) // 2
-    current_x = x2
-    for char, color in row2:
-        draw.text((current_x, y2), char, fill=color, font=font)
-        bbox = draw.textbbox((current_x, y2), char, font=font)
-        current_x += (bbox[2] - bbox[0]) + spacing
+    # --- Draw Letters ---
+    # Row 1 Left: "G" (Centered at cx1)
+    draw.text((cx1 - w_G_half, y1), "G", fill=COLOR_G_BLUE, font=font)
+    # Row 1 Right: "i" (Centered at cx2)
+    draw.text((cx2 - w_i_half, y1), "i", fill=COLOR_G_RED, font=font)
+    # Row 2 Left: "m" (Centered at cx1)
+    draw.text((cx1 - w_m_half, y2), "m", fill=COLOR_G_YELLOW, font=font)
+    # Row 2 Right: "y" (Centered at cx2)
+    draw.text((cx2 - w_y_half, y2), "y", fill=COLOR_G_GREEN, font=font)
 
 # ==================== 1. Generate TV Banner (960x540) ====================
 print("Generating TV Banner (960x540)...")

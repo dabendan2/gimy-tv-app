@@ -72,9 +72,17 @@ public class GimyMediaSession {
         final android.media.AudioManager am = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
         int currentVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
-        int initialPct = maxVol > 0 ? (currentVol * 100) / maxVol : 50;
 
-        VolumeProvider volumeProvider = new VolumeProvider(VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, initialPct) {
+        // Using VOLUME_CONTROL_ABSOLUTE matches the 1:1 hardware steps (usually 0 to 15)
+        // on Google TV / Chromecast and completely eliminates the "TV does not support volume adjustment" warning.
+        VolumeProvider volumeProvider = new VolumeProvider(VolumeProvider.VOLUME_CONTROL_ABSOLUTE, maxVol, currentVol) {
+            @Override
+            public void onSetVolumeTo(int volume) {
+                Log.i(TAG, "VolumeProvider onSetVolumeTo received. Volume: " + volume);
+                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, volume, android.media.AudioManager.FLAG_SHOW_UI);
+                setCurrentVolume(volume);
+            }
+
             @Override
             public void onAdjustVolume(int direction) {
                 Log.i(TAG, "VolumeProvider onAdjustVolume received. Direction: " + direction);
@@ -84,10 +92,8 @@ public class GimyMediaSession {
                     am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI);
                 }
                 int cur = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
-                int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
-                int pct = max > 0 ? (cur * 100) / max : 50;
-                setCurrentVolume(pct);
-                Log.d(TAG, "VolumeProvider: updated current volume percentage to " + pct + "% (system level: " + cur + "/" + max + ")");
+                setCurrentVolume(cur);
+                Log.d(TAG, "VolumeProvider: updated current volume to " + cur + "/" + maxVol);
             }
         };
         mediaSession.setPlaybackToRemote(volumeProvider);

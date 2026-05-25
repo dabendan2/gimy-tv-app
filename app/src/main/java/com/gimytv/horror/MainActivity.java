@@ -41,8 +41,6 @@ public class MainActivity extends Activity {
 
     // Layout elements
     private LinearLayout mainSplitLayout;
-    private FrameLayout playerContainer;
-    private VideoView videoView;
     private LinearLayout gridContainer;
     private ScrollView gridScrollView;
     private ScrollView rightScrollView;
@@ -65,84 +63,10 @@ public class MainActivity extends Activity {
     private GimyMediaSession gimyMediaSession = null;
     private View lastFocusedCard = null;
 
-    // Global loading and custom playback indicators
-    private TextView tvLoadingIndicator;
-    private TextView tvPlaybackIndicator;
-    private TextView tvPlayerTitle;
-    private final android.os.Handler indicatorHandler = new android.os.Handler();
-    private final Runnable hideIndicatorRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (tvPlaybackIndicator != null) {
-                tvPlaybackIndicator.setVisibility(View.GONE);
-            }
-        }
-    };
+    // Encapsulated Video Player Component
+    private GimyPlayer gimyPlayer;
 
-    // Custom TV Seek Controller state
-    private boolean isSeekingMode = false;
-    private long lastAutoSaveTime = 0;
-    private int targetSeekTime = 0;
-    private int originalPositionBeforeSeek = 0;
-    private LinearLayout seekOverlayLayout;
-    private TextView tvSeekCurrent;
-    private TextView tvSeekTotal;
-    private android.widget.SeekBar seekSeekBar;
-    private final android.os.Handler seekHandler = new android.os.Handler();
 
-    private String formatTime(int ms) {
-        int seconds = (ms / 1000) % 60;
-        int minutes = (ms / (1000 * 60)) % 60;
-        int hours = ms / (1000 * 60 * 60);
-        if (hours > 0) {
-            return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-        } else {
-            return String.format("%02d:%02d", minutes, seconds);
-        }
-    }
-
-    private final Runnable updateProgressRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (videoView != null && playerContainer.getVisibility() == View.VISIBLE) {
-                int pos = videoView.getCurrentPosition();
-                int dur = videoView.getDuration();
-                if (dur > 0) {
-                    if (!isSeekingMode) {
-                        seekSeekBar.setMax(dur);
-                        seekSeekBar.setProgress(pos);
-                        tvSeekCurrent.setText(formatTime(pos));
-                        tvSeekTotal.setText(formatTime(dur));
-                        if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(videoView.isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED);
-                    }
-                }
-
-                // Auto-save progress every 60 seconds (60,000 ms) of active playback
-                long now = android.os.SystemClock.elapsedRealtime();
-                if (now - lastAutoSaveTime >= 60000) {
-                    savePlaybackProgress();
-                    lastAutoSaveTime = now;
-                }
-
-                seekHandler.postDelayed(this, 1000);
-            }
-        }
-    };
-
-    private final Runnable hideSeekOverlayRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (seekOverlayLayout != null) {
-                if (isSeekingMode) {
-                    isSeekingMode = false;
-                    videoView.seekTo(targetSeekTime);
-                    videoView.start();
-                    showPlaybackIndicator("▶");
-                }
-                seekOverlayLayout.setVisibility(View.GONE);
-            }
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -340,96 +264,21 @@ public class MainActivity extends Activity {
         mainSplitLayout.addView(rightPanel);
         rootContainer.addView(mainSplitLayout);
 
-        // 2. Full-Screen Video Player Layer
-        playerContainer = new FrameLayout(this);
-        playerContainer.setBackgroundColor(Color.BLACK);
-        playerContainer.setVisibility(View.GONE);
+        // Initialize GimyPlayer Component
+        gimyPlayer = new GimyPlayer(this, rootContainer, movieStore, new GimyPlayer.PlayerListener() {
+            @Override
+            public void onPlaybackStopped() {
+                mainSplitLayout.setVisibility(View.VISIBLE);
+                if (btnPlayRef != null && btnPlayRef.getTag() != null) {
+                    updatePlayButtons((String) btnPlayRef.getTag());
+                }
+                localRefreshGrid();
+                if (lastFocusedCard != null) {
+                    lastFocusedCard.requestFocus();
+                }
+            }
+        });
 
-        videoView = new VideoView(this);
-        FrameLayout.LayoutParams playerParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER);
-        videoView.setLayoutParams(playerParams);
-        playerContainer.addView(videoView);
-
-        // Loading overlay
-        tvLoadingIndicator = new TextView(this);
-        tvLoadingIndicator.setText("影片載入中，請稍候...");
-        tvLoadingIndicator.setTextSize(20);
-        tvLoadingIndicator.setTextColor(Color.WHITE);
-        FrameLayout.LayoutParams loaderParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        tvLoadingIndicator.setLayoutParams(loaderParams);
-        playerContainer.addView(tvLoadingIndicator);
-
-        // Custom playback action indicator (focus-free and intuitive TV player!)
-        tvPlaybackIndicator = new TextView(this);
-        tvPlaybackIndicator.setTextSize(36);
-        tvPlaybackIndicator.setTextColor(Color.WHITE);
-        tvPlaybackIndicator.setGravity(Gravity.CENTER);
-        tvPlaybackIndicator.setPadding(40, 30, 40, 30);
-        tvPlaybackIndicator.setBackgroundColor(Color.parseColor("#90000000")); // 56% opacity black card
-        tvPlaybackIndicator.setVisibility(View.GONE);
-        FrameLayout.LayoutParams indicatorParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        tvPlaybackIndicator.setLayoutParams(indicatorParams);
-        playerContainer.addView(tvPlaybackIndicator);
-
-        // Player title indicator (shown in the top-left corner on pause!)
-        tvPlayerTitle = new TextView(this);
-        tvPlayerTitle.setTextSize(22);
-        tvPlayerTitle.setTextColor(Color.WHITE);
-        tvPlayerTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        tvPlayerTitle.setPadding(40, 20, 40, 20);
-        tvPlayerTitle.setBackgroundColor(Color.parseColor("#90000000")); // 56% opacity black card
-        tvPlayerTitle.setVisibility(View.GONE);
-        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT);
-        titleParams.setMargins(60, 60, 0, 0); // Margin from top-left corner
-        tvPlayerTitle.setLayoutParams(titleParams);
-        playerContainer.addView(tvPlayerTitle);
-
-        // Custom TV seek progress timeline overlay (placed at the bottom)
-        seekOverlayLayout = new LinearLayout(this);
-        seekOverlayLayout.setOrientation(LinearLayout.HORIZONTAL);
-        seekOverlayLayout.setGravity(Gravity.CENTER_VERTICAL);
-        seekOverlayLayout.setBackgroundColor(Color.parseColor("#CC121212")); // 80% opacity dark grey
-        seekOverlayLayout.setPadding(50, 30, 50, 30);
-        seekOverlayLayout.setVisibility(View.GONE);
-        
-        FrameLayout.LayoutParams seekOverlayParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-        seekOverlayLayout.setLayoutParams(seekOverlayParams);
-
-        // Current Seek Time
-        tvSeekCurrent = new TextView(this);
-        tvSeekCurrent.setText("00:00");
-        tvSeekCurrent.setTextColor(Color.WHITE);
-        tvSeekCurrent.setTextSize(14);
-        tvSeekCurrent.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        tvSeekCurrent.setPadding(0, 0, 30, 0);
-        seekOverlayLayout.addView(tvSeekCurrent);
-
-        // SeekBar (Timeline)
-        seekSeekBar = new android.widget.SeekBar(this);
-        seekSeekBar.setFocusable(false); // DO NOT allow remote control focus to get stuck!
-        seekSeekBar.setClickable(false);
-        LinearLayout.LayoutParams seekBarParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f); // Takes up all middle space
-        seekSeekBar.setLayoutParams(seekBarParams);
-        seekOverlayLayout.addView(seekSeekBar);
-
-        // Total Duration Time
-        tvSeekTotal = new TextView(this);
-        tvSeekTotal.setText("00:00");
-        tvSeekTotal.setTextColor(Color.parseColor("#9AA0A6"));
-        tvSeekTotal.setTextSize(14);
-        tvSeekTotal.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        tvSeekTotal.setPadding(30, 0, 0, 0);
-        seekOverlayLayout.addView(tvSeekTotal);
-
-        playerContainer.addView(seekOverlayLayout);
-
-        rootContainer.addView(playerContainer);
         setContentView(rootContainer);
 
         // Kick off default load
@@ -447,132 +296,89 @@ public class MainActivity extends Activity {
         lbl.setText(label);
         lbl.setTextSize(14);
         lbl.setTextColor(Color.parseColor("#9AA0A6"));
-        lbl.setPadding(0, 0, 15, 0);
-        lbl.setMinimumWidth(100);
+        lbl.setPadding(0, 0, 20, 0);
         row.addView(lbl);
 
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        scroll.setLayoutParams(scrollParams);
-
-        final LinearLayout itemsLayout = new LinearLayout(this);
-        itemsLayout.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout optionsLayout = new LinearLayout(this);
+        optionsLayout.setOrientation(LinearLayout.HORIZONTAL);
 
         for (final String opt : options) {
             final TextView item = new TextView(this);
             item.setText(opt);
             item.setTextSize(14);
-            item.setPadding(24, 12, 24, 12);
             item.setFocusable(true);
+            item.setClickable(true);
+            item.setPadding(30, 10, 30, 10);
             
-            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            itemParams.setMargins(0, 0, 15, 0);
-            item.setLayoutParams(itemParams);
-
             updateFilterItemStyle(item, opt, type, false);
 
             item.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
                     updateFilterItemStyle(item, opt, type, hasFocus);
-                    if (hasFocus) {
-                        v.setScaleX(1.08f);
-                        v.setScaleY(1.08f);
-                    } else {
-                        v.setScaleX(1.0f);
-                        v.setScaleY(1.0f);
-                    }
                 }
             });
 
             item.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    if (type.equals("Sort")) selectedSort = opt;
-                    else if (type.equals("Region")) selectedRegion = opt;
-                    else if (type.equals("Year")) selectedYear = opt;
+                    if ("Sort".equals(type)) selectedSort = opt;
+                    else if ("Region".equals(type)) selectedRegion = opt;
+                    else if ("Year".equals(type)) selectedYear = opt;
 
-                    for (int i = 0; i < itemsLayout.getChildCount(); i++) {
-                        TextView child = (TextView) itemsLayout.getChildAt(i);
-                        updateFilterItemStyle(child, options[i], type, child.isFocused());
-                    }
                     refreshMovieGrid();
                 }
             });
 
-            itemsLayout.addView(item);
+            optionsLayout.addView(item);
         }
-
-        scroll.addView(itemsLayout);
+        scroll.addView(optionsLayout);
         row.addView(scroll);
         return row;
     }
 
     private void updateFilterItemStyle(TextView item, String opt, String type, boolean hasFocus) {
         boolean isSelected = false;
-        if (type.equals("Sort") && selectedSort.equals(opt)) isSelected = true;
-        else if (type.equals("Region") && selectedRegion.equals(opt)) isSelected = true;
-        else if (type.equals("Year") && selectedYear.equals(opt)) isSelected = true;
+        if ("Sort".equals(type)) isSelected = opt.equals(selectedSort);
+        else if ("Region".equals(type)) isSelected = opt.equals(selectedRegion);
+        else if ("Year".equals(type)) isSelected = opt.equals(selectedYear);
 
         if (hasFocus) {
-            item.setBackgroundColor(Color.parseColor("#4285F4")); // Google Blue focus
+            item.setBackgroundColor(Color.parseColor("#3C4043")); // focused dark grey
             item.setTextColor(Color.WHITE);
-            item.setTypeface(Typeface.DEFAULT_BOLD);
         } else if (isSelected) {
-            if (type.equals("Region")) {
-                item.setBackgroundColor(Color.parseColor("#EA4335")); // Google Red
-            } else if (type.equals("Sort")) {
-                item.setBackgroundColor(Color.parseColor("#FBBC05")); // Google Yellow
-            } else {
-                item.setBackgroundColor(Color.parseColor("#34A853")); // Google Green
-            }
+            if ("Sort".equals(type)) item.setBackgroundColor(Color.parseColor("#1A73E8")); // Blue tag
+            else if ("Region".equals(type)) item.setBackgroundColor(Color.parseColor("#C5221F")); // Red tag
+            else if ("Year".equals(type)) item.setBackgroundColor(Color.parseColor("#137333")); // Green tag
             item.setTextColor(Color.WHITE);
-            item.setTypeface(Typeface.DEFAULT_BOLD);
         } else {
-            item.setBackgroundColor(Color.parseColor("#1C1D1F"));
+            item.setBackgroundColor(Color.TRANSPARENT);
             item.setTextColor(Color.parseColor("#9AA0A6"));
-            item.setTypeface(Typeface.DEFAULT);
         }
     }
 
     private void refreshMovieGrid() {
         gridContainer.removeAllViews();
-        
-        TextView tvLoading = new TextView(this);
-        tvLoading.setText("正在召喚恐怖電影壁牆...");
-        tvLoading.setTextSize(18);
-        tvLoading.setTextColor(Color.parseColor("#FBBC05"));
-        tvLoading.setGravity(Gravity.CENTER);
-        tvLoading.setPadding(0, 100, 0, 0);
-        gridContainer.addView(tvLoading);
+        TextView loading = new TextView(this);
+        loading.setText("陰間頻道連接中，請稍候...");
+        loading.setTextSize(16);
+        loading.setTextColor(Color.parseColor("#9AA0A6"));
+        loading.setGravity(Gravity.CENTER);
+        loading.setPadding(0, 120, 0, 0);
+        gridContainer.addView(loading);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    String[] params = new String[12];
-                    for (int i = 0; i < params.length; i++) params[i] = "";
-                    params[0] = "10";
-                    if (!selectedRegion.equals("全部")) {
-                        params[1] = URLEncoder.encode(selectedRegion, "UTF-8");
-                    }
-                    params[2] = selectedSort.equals("最新上架") ? "time" : (selectedSort.equals("熱門推薦") ? "hits" : "score");
-                    if (!selectedYear.equals("全部")) {
-                        params[11] = selectedYear;
-                    }
+                    String sortParam = "熱門推薦".equals(selectedSort) ? "hot" : ("最新上架".equals(selectedSort) ? "time" : "score");
+                    String regionParam = "全部".equals(selectedRegion) ? "" : selectedRegion;
+                    String yearParam = "全部".equals(selectedYear) ? "" : selectedYear;
 
-                    StringBuilder sb = new StringBuilder("https://gimyplus.com/show/");
-                    for (int i = 0; i < params.length; i++) {
-                        sb.append(params[i]);
-                        if (i < params.length - 1) sb.append("-");
-                    }
-                    sb.append(".html");
-                    String url = sb.toString();
-
-                    final String html = GimyParser.fetchHtml(url);
+                    String queryUrl = "https://gimyplus.com/genre/horror.html?class=" + URLEncoder.encode(regionParam, "UTF-8") + "&year=" + yearParam + "&by=" + sortParam;
+                    String html = GimyParser.fetchHtml(queryUrl);
                     final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);
 
                     runOnUiThread(new Runnable() {
@@ -667,7 +473,7 @@ public class MainActivity extends Activity {
                 tvTitle.setPadding(0, 12, 0, 4);
                 card.addView(tvTitle);
 
-                // Status tag - Displays previous playback progress dynamically (replacing "HD")
+                // Status tag - Displays previous playback progress dynamically
                 TextView tvNote = new TextView(this);
                 int savedPos = movieStore.getProgressPos(m.id);
                 int savedDur = movieStore.getProgressDur(m.id);
@@ -709,12 +515,12 @@ public class MainActivity extends Activity {
                         }
                     }
                 });
+                
                 // Click card to shift focus to the right panel for reading synopsis or playing!
                 card.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         if (btnPlayRef != null && btnPlayRef.isEnabled()) {
-                            // Shift focus to the Synopsis Text first, so they stay at the top and can read
                             tvDetailSynopsis.requestFocus();
                         } else {
                             android.widget.Toast.makeText(MainActivity.this, "影片載入中，請稍候...", android.widget.Toast.LENGTH_SHORT).show();
@@ -790,7 +596,6 @@ public class MainActivity extends Activity {
         movieStore.setListState(movieId, state);
     }
 
-    // Dynamic Builder for Play Buttons (Compact Square Symbols only, left-aligned)
     private void updatePlayButtons(final String playPath) {
         updatePlayButtons(playPath, false);
     }
@@ -803,7 +608,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        // 1. Play / Resume Button OR Disabled Button
         if (playPath == null || playPath.isEmpty()) {
             Button btnDisabled = new Button(this);
             btnDisabled.setText("✕");
@@ -821,7 +625,6 @@ public class MainActivity extends Activity {
             int dur = movieStore.getProgressDur(selectedMovieId);
             final boolean hasProgress = (dur > 0 && pos > 0);
 
-            // Play / Resume Button (▶)
             final Button btnPlayNew = new Button(this);
             btnPlayNew.setText("▶");
             btnPlayNew.setTag(playPath);
@@ -832,14 +635,14 @@ public class MainActivity extends Activity {
             btnPlayNew.setPadding(0, 0, 0, 0);
             
             LinearLayout.LayoutParams lpPlay = new LinearLayout.LayoutParams(size, size);
-            lpPlay.setMargins(0, 0, 20, 0); // space between buttons
+            lpPlay.setMargins(0, 0, 20, 0);
             btnPlayNew.setLayoutParams(lpPlay);
 
             btnPlayNew.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
                     if (hasFocus) {
-                        v.setBackgroundColor(Color.parseColor("#34A853")); // Google Green focus
+                        v.setBackgroundColor(Color.parseColor("#34A853"));
                         v.setScaleX(1.08f); v.setScaleY(1.08f);
                     } else {
                         v.setBackgroundColor(Color.parseColor("#137333"));
@@ -851,7 +654,7 @@ public class MainActivity extends Activity {
             btnPlayNew.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    playMovie(playPath, hasProgress); // Resume playback if progress exists!
+                    playMovie(playPath, hasProgress);
                 }
             });
 
@@ -859,14 +662,13 @@ public class MainActivity extends Activity {
             this.btnPlayRef = btnPlayNew;
             this.btnPlay = btnPlayNew;
 
-            // Restart/Loop Button (↺) - Only visible if progress exists
             if (hasProgress) {
                 Button btnRestart = new Button(this);
-                btnRestart.setText("↺"); // standard recycle/loop symbol
+                btnRestart.setText("↺");
                 btnRestart.setTextSize(22);
                 btnRestart.setTextColor(Color.WHITE);
                 btnRestart.setFocusable(true);
-                btnRestart.setBackgroundColor(Color.parseColor("#3C4043")); // Charcoal Gray
+                btnRestart.setBackgroundColor(Color.parseColor("#3C4043"));
                 btnRestart.setPadding(0, 0, 0, 0);
                 
                 LinearLayout.LayoutParams lpRestart = new LinearLayout.LayoutParams(size, size);
@@ -877,7 +679,7 @@ public class MainActivity extends Activity {
                     @Override
                     public void onFocusChange(View v, boolean hasFocus) {
                         if (hasFocus) {
-                            v.setBackgroundColor(Color.parseColor("#EA4335")); // Google Red focus for restart warning
+                            v.setBackgroundColor(Color.parseColor("#EA4335"));
                             v.setScaleX(1.08f); v.setScaleY(1.08f);
                         } else {
                             v.setBackgroundColor(Color.parseColor("#3C4043"));
@@ -889,7 +691,7 @@ public class MainActivity extends Activity {
                 btnRestart.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        playMovie(playPath, false); // Play from beginning (restart)
+                        playMovie(playPath, false);
                     }
                 });
 
@@ -897,7 +699,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        // 2. Playlist / State Button (+) / (📝) / (❤️) / (💩)
+        // Playlist State Button (+) / (📝) / (❤️) / (💩)
         final Button btnListState = new Button(this);
         int listState = getListState(selectedMovieId);
         String stateText = "+";
@@ -909,17 +711,18 @@ public class MainActivity extends Activity {
         btnListState.setTextSize(20);
         btnListState.setTextColor(Color.WHITE);
         btnListState.setFocusable(true);
-        btnListState.setBackgroundColor(Color.parseColor("#3C4043")); // Charcoal Gray
+        btnListState.setBackgroundColor(Color.parseColor("#3C4043"));
         btnListState.setPadding(0, 0, 0, 0);
-
+        
         LinearLayout.LayoutParams lpList = new LinearLayout.LayoutParams(size, size);
+        lpList.setMargins(0, 0, 20, 0);
         btnListState.setLayoutParams(lpList);
 
         btnListState.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
                 if (hasFocus) {
-                    v.setBackgroundColor(Color.parseColor("#1A73E8")); // Google Blue focus
+                    v.setBackgroundColor(Color.parseColor("#1A73E8")); // Google Blue focus for list state
                     v.setScaleX(1.08f); v.setScaleY(1.08f);
                 } else {
                     v.setBackgroundColor(Color.parseColor("#3C4043"));
@@ -931,11 +734,18 @@ public class MainActivity extends Activity {
         btnListState.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                int current = getListState(selectedMovieId);
-                int next = (current + 1) % 4;
+                int curr = getListState(selectedMovieId);
+                final int next = (curr + 1) % 4;
                 setListState(selectedMovieId, next);
 
-                // Update left panel's card title instantly without full refresh
+                // Instantly update current playlist state text
+                String updatedText = "+";
+                if (next == 1) updatedText = "📝";
+                else if (next == 2) updatedText = "❤️";
+                else if (next == 3) updatedText = "💩";
+                btnListState.setText(updatedText);
+
+                // Synchronously update left grid card title in real time!
                 if (lastFocusedCard != null && lastFocusedCard instanceof LinearLayout) {
                     LinearLayout card = (LinearLayout) lastFocusedCard;
                     if (card.getChildCount() > 1 && card.getChildAt(1) instanceof TextView) {
@@ -952,31 +762,10 @@ public class MainActivity extends Activity {
                     }
                 }
 
+                // If focus preservation requested, re-trigger update buttons and lock focus
                 updatePlayButtons(playPath, true);
             }
         });
-
-        // Strict vertical focus constraints
-        View.OnKeyListener boundKeyListener = new View.OnKeyListener() {
-            @Override
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                        tvDetailSynopsis.requestFocus();
-                        return true;
-                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                        return true; // lock down
-                    }
-                }
-                return false;
-            }
-        };
-
-        // Apply focus key listener to all active children in playButtonLayout
-        for (int i = 0; i < playButtonLayout.getChildCount(); i++) {
-            playButtonLayout.getChildAt(i).setOnKeyListener(boundKeyListener);
-        }
-        btnListState.setOnKeyListener(boundKeyListener);
 
         playButtonLayout.addView(btnListState);
 
@@ -991,23 +780,24 @@ public class MainActivity extends Activity {
     }
 
     private void playMovie(final String playPath, final boolean resume) {
-        if (playPath == null || playPath.isEmpty()) return;
-
-        tvDetailSynopsis.setText("正在分析驚悚影片流，請稍候...");
-        if (btnPlayRef != null) btnPlayRef.setEnabled(false);
+        gridContainer.removeAllViews();
+        TextView loading = new TextView(this);
+        loading.setText("正在分析驚悚影片流，請稍候...");
+        loading.setTextSize(16);
+        loading.setTextColor(Color.parseColor("#9AA0A6"));
+        loading.setGravity(Gravity.CENTER);
+        loading.setPadding(0, 120, 0, 0);
+        gridContainer.addView(loading);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final String playHtml = GimyParser.fetchHtml("https://gimyplus.com/" + playPath);
+                String playHtml = GimyParser.fetchHtml("https://gimyplus.com" + playPath);
                 final String m3u8Url = GimyParser.parseM3U8Url(playHtml);
 
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (btnPlayRef != null) btnPlayRef.setEnabled(true);
-                        updatePlayButtons(playPath);
-
                         if (m3u8Url.isEmpty()) {
                             tvDetailSynopsis.setText("通靈影片流失敗，該線路或已被陰間屏蔽！");
                         } else {
@@ -1020,224 +810,87 @@ public class MainActivity extends Activity {
     }
 
     private void startPlayer(String m3u8Url, final boolean resume) {
-        lastAutoSaveTime = android.os.SystemClock.elapsedRealtime();
-        tvLoadingIndicator.setVisibility(View.VISIBLE);
-        mainSplitLayout.setVisibility(View.GONE);
-        playerContainer.setVisibility(View.VISIBLE);
-
         initMediaSession();
         if (gimyMediaSession != null) {
-            gimyMediaSession.setActive(true);
-            gimyMediaSession.updateMediaMetadata(selectedMovieTitle != null && !selectedMovieTitle.isEmpty() ? selectedMovieTitle : "Gimy TV", -1);
-            gimyMediaSession.updatePlaybackState(PlaybackState.STATE_BUFFERING);
+            gimyPlayer.setMediaSession(gimyMediaSession);
         }
+        mainSplitLayout.setVisibility(View.GONE);
+        gimyPlayer.startPlayer(m3u8Url, resume, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle);
+    }
 
-        videoView.setMediaController(null); // Completely disable clunky default MediaController
-        videoView.setVideoPath(m3u8Url);
-        videoView.requestFocus();
-
-        final int savedPos = resume ? movieStore.getProgressPos(selectedMovieId) : 0;
-
-        videoView.setOnPreparedListener(new android.media.MediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(android.media.MediaPlayer mp) {
-                tvLoadingIndicator.setVisibility(View.GONE);
-                if (savedPos > 0) {
-                    videoView.seekTo(savedPos);
+    private void initMediaSession() {
+        if (gimyMediaSession == null) {
+            gimyMediaSession = new GimyMediaSession(this, new GimyMediaSession.PlaybackController() {
+                @Override
+                public void onPlayAction() {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive() && !gimyPlayer.getVideoView().isPlaying()) {
+                                gimyPlayer.getVideoView().start();
+                                gimyPlayer.setPlayerTitleVisible(false);
+                                gimyPlayer.showPlaybackIndicator("▶");
+                                if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PLAYING);
+                            }
+                        }
+                    });
                 }
-                videoView.start();
-                if (gimyMediaSession != null) {
-                    gimyMediaSession.updateMediaMetadata(selectedMovieTitle, videoView.getDuration());
-                    gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PLAYING);
+
+                @Override
+                public void onPauseAction() {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive() && gimyPlayer.getVideoView().isPlaying()) {
+                                gimyPlayer.getVideoView().pause();
+                                gimyPlayer.setPlayerTitleVisible(true);
+                                gimyPlayer.showPlaybackIndicator("❚❚");
+                                if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PAUSED);
+                            }
+                        }
+                    });
                 }
-                // Start the timeline progress update loop!
-                seekHandler.removeCallbacks(updateProgressRunnable);
-                seekHandler.post(updateProgressRunnable);
-            }
-        });
 
-        videoView.setOnErrorListener(new android.media.MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(android.media.MediaPlayer mp, int what, int extra) {
-                tvLoadingIndicator.setVisibility(View.GONE);
-                android.widget.Toast.makeText(MainActivity.this, "影片載入失敗，可能需要切換線路！", android.widget.Toast.LENGTH_LONG).show();
-                stopPlayer();
-                return true;
-            }
-        });
+                @Override
+                public void onStopAction() {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                                gimyPlayer.stopPlayer();
+                            }
+                        }
+                    });
+                }
 
-        videoView.setOnCompletionListener(new android.media.MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(android.media.MediaPlayer mp) {
-                stopPlayer();
-            }
-        });
-    }
+                @Override
+                public void onSeekToAction(final long pos) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                                gimyPlayer.getVideoView().seekTo((int) pos);
+                                if (gimyMediaSession != null) {
+                                    gimyMediaSession.updatePlaybackState(gimyPlayer.getVideoView().isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED);
+                                }
+                            }
+                        }
+                    });
+                }
 
-    private void savePlaybackProgress() {
-        if (videoView != null && selectedMovieId != null && !selectedMovieId.isEmpty()) {
-            int pos = videoView.getCurrentPosition();
-            int dur = videoView.getDuration();
-            if (dur > 0 && pos > 0) {
-                movieStore.savePlaybackProgress(selectedMovieId, pos, dur);
-                // Update Android TV global Play Next / Watch Next row
-                TvWatchNextHelper.updateWatchNext(this, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
-            }
+                @Override
+                public int getCurrentPosition() {
+                    return (gimyPlayer != null && gimyPlayer.getVideoView() != null) ? gimyPlayer.getVideoView().getCurrentPosition() : 0;
+                }
+            });
         }
-    }
-
-    private void stopPlayer() {
-        seekHandler.removeCallbacks(updateProgressRunnable);
-        seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-        isSeekingMode = false;
-        if (seekOverlayLayout != null) {
-            seekOverlayLayout.setVisibility(View.GONE);
-        }
-        savePlaybackProgress(); // Save progress
-        if (gimyMediaSession != null) {
-            gimyMediaSession.updatePlaybackState(PlaybackState.STATE_STOPPED);
-            gimyMediaSession.setActive(false);
-        }
-        if (videoView.isPlaying()) {
-            videoView.stopPlayback();
-        }
-        playerContainer.setVisibility(View.GONE);
-        mainSplitLayout.setVisibility(View.VISIBLE);
-        
-        if (btnPlayRef != null && btnPlayRef.getTag() != null) {
-            updatePlayButtons((String) btnPlayRef.getTag());
-        }
-
-        localRefreshGrid(); // Instantly refresh grid
-
-        if (lastFocusedCard != null) {
-            lastFocusedCard.requestFocus(); // Restore focus
-        }
-    }
-
-    private void showPlaybackIndicator(String text) {
-        if (tvPlaybackIndicator == null) return;
-        tvPlaybackIndicator.setText(text);
-        tvPlaybackIndicator.setVisibility(View.VISIBLE);
-        indicatorHandler.removeCallbacks(hideIndicatorRunnable);
-        indicatorHandler.postDelayed(hideIndicatorRunnable, 1200); // Fades out after 1.2 seconds
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 1. If video player is active, handle focus-free custom gesture-like controls!
-        if (playerContainer.getVisibility() == View.VISIBLE) {
-            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                if (isSeekingMode) {
-                    // Confirm seek instantly!
-                    isSeekingMode = false;
-                    videoView.seekTo(targetSeekTime);
-                    videoView.start();
-                    setPlayerTitleVisible(false);
-                    showPlaybackIndicator("▶");
-                    
-                    // Keep progress bar visible briefly (2s) so they see play resumed
-                    seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-                    seekHandler.postDelayed(hideSeekOverlayRunnable, 2000);
-                } else {
-                    // Toggle pause/play
-                    if (videoView.isPlaying()) {
-                        videoView.pause();
-                        setPlayerTitleVisible(true);
-                        showPlaybackIndicator("❚❚");
-                    } else {
-                        videoView.start();
-                        setPlayerTitleVisible(false);
-                        showPlaybackIndicator("▶");
-                    }
-                    // Show progress overlay so they can see current position
-                    if (seekOverlayLayout != null) {
-                        seekOverlayLayout.setVisibility(View.VISIBLE);
-                        seekSeekBar.setMax(videoView.getDuration());
-                        seekSeekBar.setProgress(videoView.getCurrentPosition());
-                        tvSeekCurrent.setText(formatTime(videoView.getCurrentPosition()));
-                        tvSeekTotal.setText(formatTime(videoView.getDuration()));
-                    }
-                    
-                    // Hide overlay after 4 seconds of no activity
-                    seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-                    seekHandler.postDelayed(hideSeekOverlayRunnable, 4000);
-                }
-                return true;
-            } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                if (!isSeekingMode) {
-                    isSeekingMode = true;
-                    originalPositionBeforeSeek = videoView.getCurrentPosition();
-                    targetSeekTime = originalPositionBeforeSeek;
-                    videoView.pause();
-                    setPlayerTitleVisible(true);
-                    showPlaybackIndicator("❚❚");
-                    if (seekOverlayLayout != null) {
-                        seekOverlayLayout.setVisibility(View.VISIBLE);
-                    }
-                }
-                targetSeekTime = Math.max(0, targetSeekTime - 30000); // 30s jump
-                if (seekSeekBar != null) {
-                    seekSeekBar.setMax(videoView.getDuration());
-                    seekSeekBar.setProgress(targetSeekTime);
-                }
-                if (tvSeekCurrent != null) {
-                    tvSeekCurrent.setText(formatTime(targetSeekTime));
-                }
-                if (tvSeekTotal != null) {
-                    tvSeekTotal.setText(formatTime(videoView.getDuration()));
-                }
-                
-                // Re-schedule auto-commit on 5 seconds of inactivity
-                seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-                seekHandler.postDelayed(hideSeekOverlayRunnable, 5000);
-                return true;
-            } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                if (!isSeekingMode) {
-                    isSeekingMode = true;
-                    originalPositionBeforeSeek = videoView.getCurrentPosition();
-                    targetSeekTime = originalPositionBeforeSeek;
-                    videoView.pause();
-                    setPlayerTitleVisible(true);
-                    showPlaybackIndicator("❚❚");
-                    if (seekOverlayLayout != null) {
-                        seekOverlayLayout.setVisibility(View.VISIBLE);
-                    }
-                }
-                targetSeekTime = Math.min(videoView.getDuration(), targetSeekTime + 30000); // 30s jump
-                if (seekSeekBar != null) {
-                    seekSeekBar.setMax(videoView.getDuration());
-                    seekSeekBar.setProgress(targetSeekTime);
-                }
-                if (tvSeekCurrent != null) {
-                    tvSeekCurrent.setText(formatTime(targetSeekTime));
-                }
-                if (tvSeekTotal != null) {
-                    tvSeekTotal.setText(formatTime(videoView.getDuration()));
-                }
-                
-                // Re-schedule auto-commit on 5 seconds of inactivity
-                seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-                seekHandler.postDelayed(hideSeekOverlayRunnable, 5000);
-                return true;
-            } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                if (isSeekingMode) {
-                    // Cancel seek! Return to original position and resume play
-                    isSeekingMode = false;
-                    videoView.seekTo(originalPositionBeforeSeek);
-                    videoView.start();
-                    setPlayerTitleVisible(false);
-                    showPlaybackIndicator("▶");
-                    if (seekOverlayLayout != null) {
-                        seekOverlayLayout.setVisibility(View.GONE);
-                    }
-                    seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-                    return true;
-                } else {
-                    stopPlayer();
-                    return true;
-                }
-            }
+        // 1. Delegate video playback controls to GimyPlayer Component
+        if (gimyPlayer != null && gimyPlayer.handlePlayerKeyDown(keyCode, event)) {
+            return true;
         }
 
         // 2. Main split UI focus handling on BACK key
@@ -1251,101 +904,11 @@ public class MainActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
-    private void initMediaSession() {
-        if (gimyMediaSession == null) {
-            gimyMediaSession = new GimyMediaSession(this, new GimyMediaSession.PlaybackController() {
-                @Override
-                public void onPlayAction() {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (videoView != null && playerContainer.getVisibility() == View.VISIBLE && !videoView.isPlaying()) {
-                                videoView.start();
-                                setPlayerTitleVisible(false);
-                                showPlaybackIndicator("▶");
-                                if (gimyMediaSession != null) {
-                                    gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PLAYING);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                @Override
-                public void onPauseAction() {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (videoView != null && playerContainer.getVisibility() == View.VISIBLE && videoView.isPlaying()) {
-                                videoView.pause();
-                                setPlayerTitleVisible(true);
-                                showPlaybackIndicator("❚❚");
-                                if (gimyMediaSession != null) {
-                                    gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PAUSED);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                @Override
-                public void onStopAction() {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (playerContainer.getVisibility() == View.VISIBLE) {
-                                stopPlayer();
-                            }
-                        }
-                    });
-                }
-
-                @Override
-                public void onSeekToAction(final long pos) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (videoView != null && playerContainer.getVisibility() == View.VISIBLE) {
-                                videoView.seekTo((int) pos);
-                                if (gimyMediaSession != null) {
-                                    gimyMediaSession.updatePlaybackState(videoView.isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                @Override
-                public int getCurrentPosition() {
-                    return (videoView != null) ? videoView.getCurrentPosition() : 0;
-                }
-            });
-        }
-    }
-
-    private void setPlayerTitleVisible(boolean visible) {
-        if (tvPlayerTitle != null) {
-            if (visible) {
-                tvPlayerTitle.setText("《" + selectedMovieTitle + "》 - 暫停");
-                tvPlayerTitle.setVisibility(View.VISIBLE);
-            } else {
-                tvPlayerTitle.setVisibility(View.GONE);
-            }
-        }
-    }
-
     @Override
     protected void onPause() {
         super.onPause();
-        seekHandler.removeCallbacks(updateProgressRunnable);
-        seekHandler.removeCallbacks(hideSeekOverlayRunnable);
-        if (playerContainer != null && playerContainer.getVisibility() == View.VISIBLE) {
-            savePlaybackProgress();
-            if (videoView != null && videoView.isPlaying()) {
-                videoView.pause();
-                setPlayerTitleVisible(true);
-                showPlaybackIndicator("❚❚");
-            }
+        if (gimyPlayer != null) {
+            gimyPlayer.pausePlaybackOnBackground();
         }
     }
 

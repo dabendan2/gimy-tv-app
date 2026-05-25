@@ -67,15 +67,30 @@ public class GimyMediaSession {
             }
         });
 
-        // Local Volume Routing (tells the system playback is local STREAM_MUSIC)
-        // This is critical because it enables the TV's built-in Cast Shell (mediashell)
-        // to detect local playback, broadcast it to the Wi-Fi network, and automatically
-        // delegate volume actions from mobile phones to the TV's system volume!
-        android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
-                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
-                .build();
-        mediaSession.setPlaybackToLocal(attrs);
+        // Remote Volume Provider (enables Wi-Fi connected mobile phones and Cast notifications
+        // to control the TV's system volume via hardware keys and notification sliders!)
+        final android.media.AudioManager am = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        int currentVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+        int initialPct = maxVol > 0 ? (currentVol * 100) / maxVol : 50;
+
+        VolumeProvider volumeProvider = new VolumeProvider(VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, initialPct) {
+            @Override
+            public void onAdjustVolume(int direction) {
+                Log.i(TAG, "VolumeProvider onAdjustVolume received. Direction: " + direction);
+                if (direction > 0) {
+                    am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, android.media.AudioManager.FLAG_SHOW_UI);
+                } else if (direction < 0) {
+                    am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI);
+                }
+                int cur = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+                int max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+                int pct = max > 0 ? (cur * 100) / max : 50;
+                setCurrentVolume(pct);
+                Log.d(TAG, "VolumeProvider: updated current volume percentage to " + pct + "% (system level: " + cur + "/" + max + ")");
+            }
+        };
+        mediaSession.setPlaybackToRemote(volumeProvider);
     }
 
     public void setActive(boolean active) {

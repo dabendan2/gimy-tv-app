@@ -21,6 +21,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "GimyHorror_UI";
 
     // Filters state
     private String selectedSort = "熱門推薦";
@@ -56,6 +57,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.i(TAG, "🚀 onCreate: Initializing Gimy TV App.");
         movieStore = new MovieStore(this);
 
         // Root container (holds main layout and full-screen video overlay)
@@ -393,6 +395,7 @@ public class MainActivity extends Activity {
     }
 
     private void refreshMovieGrid() {
+        Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + selectedSort + " | Region=" + selectedRegion + " | Year=" + selectedYear);
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("陰間頻道連接中，請稍候...");
@@ -434,23 +437,26 @@ public class MainActivity extends Activity {
                     }
 
                     String queryUrl = "https://gimyplus.com/show/" + sb.toString();
+                    Log.d(TAG, "Constructed query URL: " + queryUrl);
                     String html = GimyParser.fetchHtml(queryUrl);
                     final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);
 
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            Log.i(TAG, "Grid updated with " + parsedMovies.size() + " movies.");
                             gridPanelManager.populateGrid(parsedMovies);
                         }
                     });
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "Error in refreshMovieGrid thread", e);
                 }
             }
         }).start();
     }
 
     private void playMovie(final String playPath, final boolean resume) {
+        Log.i(TAG, "🎬 playMovie requested: path=" + playPath + " | resume=" + resume);
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("正在分析驚悚影片流，請稍候...");
@@ -463,19 +469,27 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                String playHtml = GimyParser.fetchHtml("https://gimyplus.com" + playPath);
-                final String m3u8Url = GimyParser.parseM3U8Url(playHtml);
+                try {
+                    String fullVodUrl = "https://gimyplus.com" + playPath;
+                    Log.d(TAG, "Fetching movie streaming page HTML from: " + fullVodUrl);
+                    String playHtml = GimyParser.fetchHtml(fullVodUrl);
+                    final String m3u8Url = GimyParser.parseM3U8Url(playHtml);
 
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (m3u8Url.isEmpty()) {
-                            tvDetailSynopsis.setText("通靈影片流失敗，該線路或已被陰間屏蔽！");
-                        } else {
-                            startPlayer(m3u8Url, resume);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (m3u8Url.isEmpty()) {
+                                Log.e(TAG, "parseM3U8Url returned empty for path: " + playPath);
+                                tvDetailSynopsis.setText("通靈影片流失敗，該線路或已被陰間屏蔽！");
+                            } else {
+                                Log.i(TAG, "Found m3u8 stream. Launching player...");
+                                startPlayer(m3u8Url, resume);
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in playMovie analysis thread", e);
+                }
             }
         }).start();
     }
@@ -603,11 +617,13 @@ public class MainActivity extends Activity {
     private void handleIntent(android.content.Intent intent) {
         if (intent != null && detailPanelManager != null) {
             String movieId = intent.getStringExtra("movieId");
+            Log.i(TAG, "📥 handleIntent received. Movie ID: " + movieId);
             if (movieId != null && !movieId.isEmpty()) {
                 String title = intent.getStringExtra("movieTitle");
                 String imageUrl = intent.getStringExtra("imageUrl");
                 String subtitle = intent.getStringExtra("subtitle");
                 
+                Log.i(TAG, "📥 Restoring Watch Next / Deep Link for: " + title);
                 // Load movie details asynchronously, and auto-focus play
                 detailPanelManager.loadMovieDetails(movieId, title != null ? title : "", imageUrl != null ? imageUrl : "", "", subtitle != null ? subtitle : "", true);
             }

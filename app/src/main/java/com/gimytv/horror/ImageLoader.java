@@ -54,7 +54,7 @@ public class ImageLoader {
                         callback.onImageLoaded(bitmap);
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("GimyHorror", "Image load error for: " + finalUrl, e);
+                    Log.e("GimyHorror", "Image load error for: " + finalUrl, e);
                     if (callback != null) callback.onImageLoaded(null);
                 }
             }
@@ -100,7 +100,7 @@ public class ImageLoader {
                         });
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("GimyHorror", "Image load error for: " + finalUrl, e);
+                    Log.e("GimyHorror", "Image load error for: " + finalUrl, e);
                 }
             }
         }).start();

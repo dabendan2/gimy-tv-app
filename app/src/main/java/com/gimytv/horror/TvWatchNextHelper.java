@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Build;
 
 public class TvWatchNextHelper {
+    private static final String TAG = "GimyHorror_Store";
 
     /**
      * Updates or inserts a movie playback progress in Android TV's global "Watch Next / 繼續觀賞" row.
@@ -29,8 +30,10 @@ public class TvWatchNextHelper {
                 try {
                     Uri individualUri = ContentUris.withAppendedId(contentUri, savedId);
                     resolver.delete(individualUri, null, null);
+                    Log.d(TAG, "TvWatchNextHelper: Removed old Watch Next entry with ID " + savedId);
                 } catch (Exception e) {
                     // Fail-silent if the program was already manually removed/swiped by the user
+                    Log.d(TAG, "TvWatchNextHelper: Old Watch Next entry " + savedId + " could not be removed (might be manually swiped).");
                 }
                 movieStore.getPrefs().edit().remove("watch_next_id_" + movieId).apply();
             }
@@ -39,7 +42,7 @@ public class TvWatchNextHelper {
             if (duration > 0 && position > 0) {
                 double pct = (double) position / duration;
                 if (pct > 0.95 || pct < 0.03) {
-                    System.out.println("TvWatchNextHelper: Movie " + title + " progress out of Watch Next bounds (" + (int)(pct*100) + "%), cleared.");
+                    Log.i(TAG, "TvWatchNextHelper: Movie " + title + " progress out of Watch Next bounds (" + (int)(pct*100) + "%), cleared.");
                     return; // exit after deleting the old one
                 }
             } else {
@@ -76,11 +79,10 @@ public class TvWatchNextHelper {
             if (newUri != null) {
                 long newId = ContentUris.parseId(newUri);
                 movieStore.getPrefs().edit().putLong("watch_next_id_" + movieId, newId).apply();
-                System.out.println("TvWatchNextHelper: Successfully added Watch Next program for " + title + " with ID " + newId);
+                Log.i(TAG, "TvWatchNextHelper: Successfully added Watch Next program for " + title + " with ID " + newId);
             }
         } catch (Exception e) {
-            System.err.println("TvWatchNextHelper: Error updating Watch Next: " + e.getMessage());
-            e.printStackTrace();
+            Log.e(TAG, "TvWatchNextHelper: Error updating Watch Next: " + e.getMessage(), e);
         }
     }
 
@@ -97,9 +99,10 @@ public class TvWatchNextHelper {
                 Uri individualUri = ContentUris.withAppendedId(contentUri, savedId);
                 resolver.delete(individualUri, null, null);
                 movieStore.getPrefs().edit().remove("watch_next_id_" + movieId).apply();
+                Log.i(TAG, "TvWatchNextHelper: Removed Watch Next entry " + savedId + " for Movie ID: " + movieId);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "TvWatchNextHelper: Error removing Watch Next for Movie ID " + movieId, e);
         }
     }
 }

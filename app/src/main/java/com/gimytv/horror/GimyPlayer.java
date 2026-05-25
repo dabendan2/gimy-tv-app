@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.VideoView;
 
 public class GimyPlayer {
+    private static final String TAG = "GimyHorror_Player";
 
     public interface PlayerListener {
         void onPlaybackStopped();
@@ -223,7 +224,8 @@ public class GimyPlayer {
         return videoView;
     }
 
-    public void startPlayer(String m3u8Url, boolean resume, String movieId, String title, String imageUrl, String subtitle) {
+    public void startPlayer(final String m3u8Url, boolean resume, String movieId, String title, String imageUrl, String subtitle) {
+        Log.i(TAG, "🎬 startPlayer requested - Title: " + title + " | Movie ID: " + movieId + " | Resume: " + resume + " | URL: " + m3u8Url);
         this.selectedMovieId = movieId;
         this.selectedMovieTitle = title;
         this.selectedMovieImageUrl = imageUrl;
@@ -234,6 +236,7 @@ public class GimyPlayer {
         playerContainer.setVisibility(View.VISIBLE);
 
         if (gimyMediaSession != null) {
+            Log.d(TAG, "Active MediaSession and set to BUFFERING.");
             gimyMediaSession.setActive(true);
             gimyMediaSession.updateMediaMetadata(selectedMovieTitle != null && !selectedMovieTitle.isEmpty() ? selectedMovieTitle : "Gimy TV", -1);
             gimyMediaSession.updatePlaybackState(PlaybackState.STATE_BUFFERING);
@@ -248,6 +251,7 @@ public class GimyPlayer {
                             @Override
                             public void run() {
                                 if (currentMovieId.equals(selectedMovieId)) {
+                                    Log.d(TAG, "MediaSession metadata updated with poster bitmap.");
                                     gimyMediaSession.updateMediaMetadata(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "Gimy TV", -1, bitmap);
                                 }
                             }
@@ -262,12 +266,15 @@ public class GimyPlayer {
         videoView.requestFocus();
 
         final int savedPos = resume ? movieStore.getProgressPos(selectedMovieId) : 0;
+        Log.d(TAG, "Saved playback position for this movie: " + savedPos + " ms");
 
         videoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
             @Override
             public void onPrepared(MediaPlayer mp) {
+                Log.i(TAG, "✅ Video prepared. Duration: " + videoView.getDuration() + " ms");
                 tvLoadingIndicator.setVisibility(View.GONE);
                 if (savedPos > 0) {
+                    Log.i(TAG, "Seeking to saved progress: " + savedPos + " ms");
                     videoView.seekTo(savedPos);
                 }
                 videoView.start();
@@ -301,6 +308,7 @@ public class GimyPlayer {
         videoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mp, int what, int extra) {
+                Log.e(TAG, "❌ Video player error occurred! What: " + what + " | Extra: " + extra + " | URL: " + m3u8Url);
                 tvLoadingIndicator.setVisibility(View.GONE);
                 android.widget.Toast.makeText(activity, "影片載入失敗，可能需要切換線路！", android.widget.Toast.LENGTH_LONG).show();
                 stopPlayer();
@@ -311,6 +319,7 @@ public class GimyPlayer {
         videoView.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
+                Log.i(TAG, "🎬 Playback completed for Movie: " + selectedMovieTitle);
                 stopPlayer();
             }
         });
@@ -320,6 +329,7 @@ public class GimyPlayer {
         if (videoView != null && selectedMovieId != null && !selectedMovieId.isEmpty()) {
             int pos = videoView.getCurrentPosition();
             int dur = videoView.getDuration();
+            Log.d(TAG, "💾 savePlaybackProgress triggered - ID: " + selectedMovieId + " | Pos: " + pos + " ms | Dur: " + dur + " ms");
             if (dur > 0 && pos > 0) {
                 movieStore.savePlaybackProgress(selectedMovieId, pos, dur);
                 TvWatchNextHelper.updateWatchNext(activity, movieStore, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
@@ -328,6 +338,7 @@ public class GimyPlayer {
     }
 
     public void stopPlayer() {
+        Log.i(TAG, "⏹ stopping playback for Movie ID: " + selectedMovieId);
         seekHandler.removeCallbacks(updateProgressRunnable);
         seekHandler.removeCallbacks(hideSeekOverlayRunnable);
         isSeekingMode = false;
@@ -350,6 +361,7 @@ public class GimyPlayer {
     }
 
     public void pausePlaybackOnBackground() {
+        Log.i(TAG, "⏸ pausePlaybackOnBackground triggered.");
         seekHandler.removeCallbacks(updateProgressRunnable);
         seekHandler.removeCallbacks(hideSeekOverlayRunnable);
         if (isPlayerActive()) {
@@ -389,8 +401,11 @@ public class GimyPlayer {
             return false;
         }
 
+        Log.d(TAG, "D-Pad / Player Key pressed: " + KeyEvent.keyCodeToString(keyCode));
+
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             if (isSeekingMode) {
+                Log.i(TAG, "Seek committed to position: " + targetSeekTime + " ms");
                 isSeekingMode = false;
                 videoView.seekTo(targetSeekTime);
                 videoView.start();
@@ -401,11 +416,13 @@ public class GimyPlayer {
                 seekHandler.postDelayed(hideSeekOverlayRunnable, 2000);
             } else {
                 if (videoView.isPlaying()) {
+                    Log.i(TAG, "Playback paused via Center/Enter key.");
                     videoView.pause();
                     setPlayerTitleVisible(true);
                     showPlaybackIndicator("❚❚");
                     if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PAUSED);
                 } else {
+                    Log.i(TAG, "Playback resumed via Center/Enter key.");
                     videoView.start();
                     setPlayerTitleVisible(false);
                     showPlaybackIndicator("▶");
@@ -428,6 +445,7 @@ public class GimyPlayer {
                 isSeekingMode = true;
                 originalPositionBeforeSeek = videoView.getCurrentPosition();
                 targetSeekTime = originalPositionBeforeSeek;
+                Log.i(TAG, "Entering Seek Mode (Backward) from pos: " + originalPositionBeforeSeek + " ms");
                 videoView.pause();
                 setPlayerTitleVisible(true);
                 showPlaybackIndicator("❚❚");
@@ -437,6 +455,7 @@ public class GimyPlayer {
                 }
             }
             targetSeekTime = Math.max(0, targetSeekTime - 30000);
+            Log.d(TAG, "Seeking backward, targetSeekTime: " + targetSeekTime + " ms");
             if (seekSeekBar != null) {
                 seekSeekBar.setMax(videoView.getDuration());
                 seekSeekBar.setProgress(targetSeekTime);
@@ -456,6 +475,7 @@ public class GimyPlayer {
                 isSeekingMode = true;
                 originalPositionBeforeSeek = videoView.getCurrentPosition();
                 targetSeekTime = originalPositionBeforeSeek;
+                Log.i(TAG, "Entering Seek Mode (Forward) from pos: " + originalPositionBeforeSeek + " ms");
                 videoView.pause();
                 setPlayerTitleVisible(true);
                 showPlaybackIndicator("❚❚");
@@ -465,6 +485,7 @@ public class GimyPlayer {
                 }
             }
             targetSeekTime = Math.min(videoView.getDuration(), targetSeekTime + 30000);
+            Log.d(TAG, "Seeking forward, targetSeekTime: " + targetSeekTime + " ms");
             if (seekSeekBar != null) {
                 seekSeekBar.setMax(videoView.getDuration());
                 seekSeekBar.setProgress(targetSeekTime);
@@ -481,6 +502,7 @@ public class GimyPlayer {
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (isSeekingMode) {
+                Log.i(TAG, "Seek cancelled, returning to original position: " + originalPositionBeforeSeek + " ms");
                 isSeekingMode = false;
                 videoView.seekTo(originalPositionBeforeSeek);
                 videoView.start();
@@ -493,6 +515,7 @@ public class GimyPlayer {
                 seekHandler.removeCallbacks(hideSeekOverlayRunnable);
                 return true;
             } else {
+                Log.i(TAG, "Back pressed while playing, stopping player.");
                 stopPlayer();
                 return true;
             }

@@ -8,9 +8,11 @@ import java.net.URL;
 import java.util.ArrayList;
 
 public class GimyParser {
+    private static final String TAG = "GimyHorror_Parser";
 
     public static String fetchHtml(String urlStr) {
         try {
+            Log.i(TAG, "Fetching HTML from: " + urlStr);
             URL url = new URL(urlStr);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
@@ -29,7 +31,7 @@ public class GimyParser {
             is.close();
             return sb.toString();
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to fetch HTML from URL: " + urlStr, e);
             return "";
         }
     }
@@ -101,6 +103,9 @@ public class GimyParser {
 
                 movies.add(new Movie(id, title, imageUrl, note, subtitle));
             }
+            Log.d(TAG, "Successfully parsed " + movies.size() + " movies from HTML list block.");
+        } else {
+            Log.e(TAG, "Failed to find movie list container 'class=\"box-video-list\"' or 'layout-box' in HTML.");
         }
         return movies;
     }
@@ -118,6 +123,8 @@ public class GimyParser {
                 synopsis = detailHtml.substring(start, end).trim();
                 synopsis = synopsis.replaceAll("<[^>]*>", "");
             }
+        } else {
+            Log.w(TAG, "Could not find synopsis marker 'class=\"details-content-all\"' in detail HTML.");
         }
 
         String playPath = "";
@@ -128,6 +135,11 @@ public class GimyParser {
             if (end != -1) {
                 playPath = detailHtml.substring(start, end);
             }
+        }
+        if (playPath.isEmpty()) {
+            Log.w(TAG, "Could not parse play path (href=\"/ep/\") in detail HTML.");
+        } else {
+            Log.d(TAG, "Parsed play path successfully: " + playPath);
         }
         return new String[]{synopsis, playPath};
     }
@@ -150,6 +162,11 @@ public class GimyParser {
                     }
                 }
             }
+        }
+        if (m3u8Url.isEmpty()) {
+            Log.e(TAG, "Failed to parse M3U8 streaming URL from player_data JSON.");
+        } else {
+            Log.i(TAG, "Successfully parsed stream M3U8 URL: " + m3u8Url);
         }
         return m3u8Url;
     }

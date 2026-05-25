@@ -90,12 +90,10 @@ To satisfy display requirements on various vendor custom skins (Samsung, Pixel, 
 *   `METADATA_KEY_DISPLAY_SUBTITLE` (set to `"Gimy 鬼魅劇場"`)
 *   `METADATA_KEY_ALBUM` (set to `"Gimy 鬼魅劇場"`)
 
-### 3. Absolute Volume Control Bridge (`VOLUME_CONTROL_ABSOLUTE`)
-If a local MediaSession uses relative volume controls, connected mobile devices will display the warning **"TV does not support volume adjustment"**.
-*   **Implementation**: We route volume to a custom `VolumeProvider` in `VOLUME_CONTROL_ABSOLUTE` mode, mapped 1:1 to the TV's physical stream `STREAM_MUSIC` (typically `0` to `15` steps).
-*   **Callbacks**:
-    *   **`onSetVolumeTo(int volume)`**: Handles dragging the volume slider on the phone. Bridges directly to `am.setStreamVolume()`.
-    *   **`onAdjustVolume(int direction)`**: Handles hardware physical volume button clicks on the phone. Bridges to `am.adjustStreamVolume()`.
+### 3. Native Volume Routing (`setPlaybackToLocal`)
+Instead of bloated custom `VolumeProvider` hacks that capture volume keys manually, the app utilizes native, lightweight system routing:
+*   **Implementation**: Calling `mediaSession.setPlaybackToLocal(attrs)` informs Android TV's built-in Cast Shell (`mediashell`) that playback is local.
+*   **System Integration**: When the TV Streamer is configured to output digital volume ("Google TV Streamer" audio mode instead of IR/CEC passthrough), Google Play Services on Wi-Fi connected phones automatically binds to this stream, allowing seamless volume synchronization without redundant app-level overrides.
 
 ---
 

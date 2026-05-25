@@ -20,6 +20,16 @@ public class TestRunner {
             failed++;
         }
 
+        // Run MovieSorter Tests
+        try {
+            MovieSorterTest.runTests();
+            passed++;
+        } catch (Throwable t) {
+            System.err.println("  [FAIL] MovieSorter tests failed!");
+            t.printStackTrace();
+            failed++;
+        }
+
         System.out.println("=================================================");
         System.out.println("TEST RUN SUMMARY:");
         System.out.println("  PASSED MODULES: " + passed);

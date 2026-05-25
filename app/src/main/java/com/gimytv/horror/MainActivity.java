@@ -600,17 +600,11 @@ public class MainActivity extends Activity {
         }
 
         // Re-arrange list: pull watchlist (list_state == 1) to the very front
-        final ArrayList<Movie> sortedMovies = new ArrayList<>();
-        ArrayList<Movie> normalMovies = new ArrayList<>();
+        java.util.HashMap<String, Integer> statesMap = new java.util.HashMap<>();
         for (Movie m : movies) {
-            int state = movieStore.getListState(m.id);
-            if (state == 1) { // 待播清單 (📝)
-                sortedMovies.add(m);
-            } else {
-                normalMovies.add(m);
-            }
+            statesMap.put(m.id, movieStore.getListState(m.id));
         }
-        sortedMovies.addAll(normalMovies);
+        final ArrayList<Movie> sortedMovies = MovieSorter.sortMovies(movies, statesMap);
         this.currentMoviesList = sortedMovies; // Cache sorted list for rapid local refresh
 
         int rowCount = (int) Math.ceil(sortedMovies.size() / 3f);

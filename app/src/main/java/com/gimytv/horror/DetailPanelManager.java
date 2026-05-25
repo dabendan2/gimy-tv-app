@@ -182,6 +182,7 @@ public class DetailPanelManager {
                         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                             if (rightScrollView != null) {
                                 rightScrollView.requestFocus();
+                                rightScrollView.smoothScrollBy(0, -100);
                                 return true;
                             }
                         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -237,6 +238,7 @@ public class DetailPanelManager {
                             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                                 if (rightScrollView != null) {
                                     rightScrollView.requestFocus();
+                                    rightScrollView.smoothScrollBy(0, -100);
                                     return true;
                                 }
                             } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -313,6 +315,7 @@ public class DetailPanelManager {
                     if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                         if (rightScrollView != null) {
                             rightScrollView.requestFocus();
+                            rightScrollView.smoothScrollBy(0, -100);
                             return true;
                         }
                     } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {

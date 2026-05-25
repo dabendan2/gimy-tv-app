@@ -173,10 +173,25 @@ public class GridPanelManager {
             gridContainer.addView(row);
         }
 
-        if (gridContainer.getChildCount() > 0) {
-            LinearLayout firstRow = (LinearLayout) gridContainer.getChildAt(0);
-            if (firstRow.getChildCount() > 0) {
-                firstRow.getChildAt(0).requestFocus();
+        android.view.View currentFocus = null;
+        if (context instanceof android.app.Activity) {
+            currentFocus = ((android.app.Activity) context).getCurrentFocus();
+        }
+        
+        boolean isFilterFocused = false;
+        if (currentFocus != null) {
+            android.view.ViewParent parent = currentFocus.getParent();
+            if (parent != null && parent.getParent() instanceof android.widget.HorizontalScrollView) {
+                isFilterFocused = true;
+            }
+        }
+
+        if (!isFilterFocused) {
+            if (gridContainer.getChildCount() > 0) {
+                LinearLayout firstRow = (LinearLayout) gridContainer.getChildAt(0);
+                if (firstRow.getChildCount() > 0) {
+                    firstRow.getChildAt(0).requestFocus();
+                }
             }
         }
     }

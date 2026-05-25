@@ -192,6 +192,7 @@ public class MainActivity extends Activity {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
                 if (hasFocus) {
+                    Log.i(TAG, "🎯 FocusState: Right Detail Panel focused");
                     v.setBackgroundColor(Color.parseColor("#303134")); // Highlight
                 } else {
                     v.setBackgroundColor(Color.TRANSPARENT);
@@ -251,6 +252,7 @@ public class MainActivity extends Activity {
         gridPanelManager = new GridPanelManager(this, gridContainer, movieStore, new GridPanelManager.GridPanelListener() {
             @Override
             public void onMovieCardFocused(Movie movie, View card) {
+                Log.i(TAG, "🎯 FocusState: Movie Card focused -> 《" + movie.title + "》 (ID: " + movie.id + ")");
                 if (detailPanelManager != null) {
                     detailPanelManager.loadMovieDetails(movie.id, movie.title, movie.imageUrl, movie.note, movie.subtitle);
                 }
@@ -350,6 +352,9 @@ public class MainActivity extends Activity {
             item.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
+                        Log.i(TAG, "🎯 FocusState: Filter focused -> " + type + ": " + opt);
+                    }
                     updateFilterItemStyle(item, opt, type, hasFocus);
                 }
             });

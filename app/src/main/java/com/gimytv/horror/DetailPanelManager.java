@@ -157,6 +157,7 @@ public class DetailPanelManager {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
                     if (hasFocus) {
+                        Log.i("GimyHorror_UI", "🎯 FocusState: Play Button (New) focused");
                         v.setBackgroundColor(Color.parseColor("#34A853"));
                         v.setScaleX(1.08f); v.setScaleY(1.08f);
                     } else {
@@ -213,6 +214,7 @@ public class DetailPanelManager {
                     @Override
                     public void onFocusChange(View v, boolean hasFocus) {
                         if (hasFocus) {
+                            Log.i("GimyHorror_UI", "🎯 FocusState: Restart Button focused");
                             v.setBackgroundColor(Color.parseColor("#EA4335"));
                             v.setScaleX(1.08f); v.setScaleY(1.08f);
                         } else {
@@ -276,6 +278,7 @@ public class DetailPanelManager {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
                 if (hasFocus) {
+                    Log.i("GimyHorror_UI", "🎯 FocusState: Playlist Button focused");
                     v.setBackgroundColor(Color.parseColor("#1A73E8")); // Blue focus
                     v.setScaleX(1.08f); v.setScaleY(1.08f);
                 } else {

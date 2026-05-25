@@ -46,13 +46,12 @@ public class MainActivity extends Activity {
 
     // Persisted preferences & state
     private MovieStore movieStore;
-    private ArrayList<Movie> currentMoviesList = new ArrayList<>();
     private GimyMediaSession gimyMediaSession = null;
-    private View lastFocusedCard = null;
 
     // Encapsulated Components
     private GimyPlayer gimyPlayer;
     private DetailPanelManager detailPanelManager;
+    private GridPanelManager gridPanelManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -239,6 +238,25 @@ public class MainActivity extends Activity {
         mainSplitLayout.addView(rightPanel);
         rootContainer.addView(mainSplitLayout);
 
+        // Initialize GridPanelManager Component
+        gridPanelManager = new GridPanelManager(this, gridContainer, movieStore, new GridPanelManager.GridPanelListener() {
+            @Override
+            public void onMovieCardFocused(Movie movie, View card) {
+                if (detailPanelManager != null) {
+                    detailPanelManager.loadMovieDetails(movie.id, movie.title, movie.imageUrl, movie.note, movie.subtitle);
+                }
+            }
+
+            @Override
+            public void onMovieCardClicked(Movie movie, View card) {
+                if (detailPanelManager != null && detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().isEnabled()) {
+                    tvDetailSynopsis.requestFocus();
+                } else {
+                    android.widget.Toast.makeText(MainActivity.this, "影片載入中，請稍候...", android.widget.Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
         // Initialize DetailPanelManager Component
         detailPanelManager = new DetailPanelManager(this, rightScrollView, playButtonLayout,
                 tvDetailTitle, tvDetailMeta, tvDetailSynopsis, movieStore, new DetailPanelManager.DetailPanelListener() {
@@ -250,6 +268,7 @@ public class MainActivity extends Activity {
             @Override
             public void onListStateChanged(String movieId, int nextState) {
                 // Synchronously update left grid card title in real time!
+                View lastFocusedCard = gridPanelManager.getLastFocusedCard();
                 if (lastFocusedCard != null && lastFocusedCard instanceof LinearLayout) {
                     LinearLayout card = (LinearLayout) lastFocusedCard;
                     if (card.getChildCount() > 1 && card.getChildAt(1) instanceof TextView) {
@@ -276,7 +295,8 @@ public class MainActivity extends Activity {
                 if (detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().getTag() != null) {
                     detailPanelManager.updatePlayButtons((String) detailPanelManager.getPlayButton().getTag());
                 }
-                localRefreshGrid();
+                gridPanelManager.localRefreshGrid();
+                View lastFocusedCard = gridPanelManager.getLastFocusedCard();
                 if (lastFocusedCard != null) {
                     lastFocusedCard.requestFocus();
                 }
@@ -381,14 +401,37 @@ public class MainActivity extends Activity {
                     String regionParam = "全部".equals(selectedRegion) ? "" : selectedRegion;
                     String yearParam = "全部".equals(selectedYear) ? "" : selectedYear;
 
-                    String queryUrl = "https://gimyplus.com/genre/horror.html?class=" + URLEncoder.encode(regionParam, "UTF-8") + "&year=" + yearParam + "&by=" + sortParam;
+                    // Construct MacCMS Standard Show URL with exactly 11 hyphens (12 parameters fields)
+                    String[] parts = new String[12];
+                    parts[0] = "10"; // '10' is the 'Horror' Category ID on gimyplus.com
+                    parts[1] = URLEncoder.encode(regionParam, "UTF-8");
+                    parts[2] = "hot".equals(sortParam) ? "hits" : sortParam;
+                    parts[3] = "";
+                    parts[4] = "";
+                    parts[5] = "";
+                    parts[6] = "";
+                    parts[7] = "";
+                    parts[8] = "";
+                    parts[9] = "";
+                    parts[10] = "";
+                    parts[11] = yearParam.isEmpty() ? ".html" : yearParam + ".html";
+
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < parts.length; i++) {
+                        sb.append(parts[i]);
+                        if (i < parts.length - 1) {
+                            sb.append("-");
+                        }
+                    }
+
+                    String queryUrl = "https://gimyplus.com/show/" + sb.toString();
                     String html = GimyParser.fetchHtml(queryUrl);
                     final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);
 
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            populateGrid(parsedMovies);
+                            gridPanelManager.populateGrid(parsedMovies);
                         }
                     });
                 } catch (Exception e) {
@@ -396,159 +439,6 @@ public class MainActivity extends Activity {
                 }
             }
         }).start();
-    }
-
-    private void populateGrid(final ArrayList<Movie> movies) {
-        gridContainer.removeAllViews();
-        if (movies.isEmpty()) {
-            this.currentMoviesList = movies;
-            TextView empty = new TextView(this);
-            empty.setText("在陰間迷路了，未找到相符的鬼片！\n請更換篩選條件看看。");
-            empty.setTextSize(16);
-            empty.setTextColor(Color.parseColor("#9AA0A6"));
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, 120, 0, 0);
-            gridContainer.addView(empty);
-            return;
-        }
-
-        // Re-arrange list: pull watchlist (list_state == 1) to the very front
-        java.util.HashMap<String, Integer> statesMap = new java.util.HashMap<>();
-        for (Movie m : movies) {
-            statesMap.put(m.id, movieStore.getListState(m.id));
-        }
-        final ArrayList<Movie> sortedMovies = MovieSorter.sortMovies(movies, statesMap);
-        this.currentMoviesList = sortedMovies; // Cache sorted list for rapid local refresh
-
-        int rowCount = (int) Math.ceil(sortedMovies.size() / 3f);
-        for (int r = 0; r < rowCount; r++) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setLayoutParams(new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            row.setPadding(0, 10, 0, 10);
-
-            for (int c = 0; c < 3; c++) {
-                final int idx = r * 3 + c;
-                if (idx >= sortedMovies.size()) {
-                    View spacer = new View(this);
-                    LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(0, 1, 1f);
-                    spacerParams.setMargins(10, 0, 10, 0);
-                    spacer.setLayoutParams(spacerParams);
-                    row.addView(spacer);
-                    continue;
-                }
-
-                final Movie m = sortedMovies.get(idx);
-
-                // Movie Card Container
-                final LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.VERTICAL);
-                LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-                cardParams.setMargins(10, 0, 10, 0);
-                card.setLayoutParams(cardParams);
-                card.setPadding(15, 15, 15, 15);
-                card.setBackgroundColor(Color.parseColor("#1C1D1F"));
-                card.setFocusable(true);
-                card.setClickable(true);
-
-                // Image Poster
-                ImageView ivPoster = new ImageView(this);
-                LinearLayout.LayoutParams imgParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 200);
-                ivPoster.setLayoutParams(imgParams);
-                ivPoster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                ivPoster.setBackgroundColor(Color.BLACK);
-                ImageLoader.loadImage(m.imageUrl, ivPoster);
-                card.addView(ivPoster);
-
-                // Title
-                final TextView tvTitle = new TextView(this);
-                int listState = movieStore.getListState(m.id);
-                String prefix = "";
-                if (listState == 1) prefix = "📝 ";
-                else if (listState == 2) prefix = "❤️ ";
-                else if (listState == 3) prefix = "💩 ";
-                tvTitle.setText(prefix + m.title);
-                tvTitle.setTextSize(14);
-                tvTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-                tvTitle.setTextColor(Color.WHITE);
-                tvTitle.setSingleLine(true);
-                tvTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                tvTitle.setPadding(0, 12, 0, 4);
-                card.addView(tvTitle);
-
-                // Status tag - Displays previous playback progress dynamically
-                TextView tvNote = new TextView(this);
-                int savedPos = movieStore.getProgressPos(m.id);
-                int savedDur = movieStore.getProgressDur(m.id);
-                String progressText = "";
-                if (savedDur > 0 && savedPos > 0) {
-                    int pct = (savedPos * 100) / savedDur;
-                    pct = Math.max(1, Math.min(100, pct));
-                    progressText = "▶ " + pct + "%";
-                }
-
-                if (progressText.isEmpty()) {
-                    tvNote.setVisibility(View.GONE);
-                } else {
-                    tvNote.setVisibility(View.VISIBLE);
-                    tvNote.setText(progressText);
-                }
-                tvNote.setTextSize(11);
-                tvNote.setTextColor(Color.parseColor("#FBBC05")); // Google Yellow progress tag
-                tvNote.setSingleLine(true);
-                card.addView(tvNote);
-
-                // Focus events
-                card.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-                    @Override
-                    public void onFocusChange(View v, boolean hasFocus) {
-                        if (hasFocus) {
-                            lastFocusedCard = card; // Save current card reference
-                            card.setBackgroundColor(Color.parseColor("#303134")); // Light Slate gray
-                            card.setScaleX(1.05f);
-                            card.setScaleY(1.05f);
-                            tvTitle.setTextColor(Color.parseColor("#4285F4")); // Highlight text with Google Blue
-
-                            if (detailPanelManager != null) {
-                                detailPanelManager.loadMovieDetails(m.id, m.title, m.imageUrl, m.note, m.subtitle);
-                            }
-                        } else {
-                            card.setBackgroundColor(Color.parseColor("#1C1D1F"));
-                            card.setScaleX(1.0f);
-                            card.setScaleY(1.0f);
-                            tvTitle.setTextColor(Color.WHITE);
-                        }
-                    }
-                });
-                
-                // Click card to shift focus to the right panel for reading synopsis or playing!
-                card.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        if (detailPanelManager != null && detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().isEnabled()) {
-                            tvDetailSynopsis.requestFocus();
-                        } else {
-                            android.widget.Toast.makeText(MainActivity.this, "影片載入中，請稍候...", android.widget.Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
-
-                row.addView(card);
-            }
-            gridContainer.addView(row);
-        }
-
-        if (gridContainer.getChildCount() > 0) {
-            LinearLayout firstRow = (LinearLayout) gridContainer.getChildAt(0);
-            if (firstRow.getChildCount() > 0) {
-                firstRow.getChildAt(0).requestFocus();
-            }
-        }
-    }
-
-    private void localRefreshGrid() {
-        populateGrid(currentMoviesList);
     }
 
     private void playMovie(final String playPath, final boolean resume) {
@@ -668,6 +558,7 @@ public class MainActivity extends Activity {
         // 2. Main split UI focus handling on BACK key
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             View currentFocus = getCurrentFocus();
+            View lastFocusedCard = gridPanelManager.getLastFocusedCard();
             if (currentFocus != null && currentFocus != lastFocusedCard && lastFocusedCard != null) {
                 lastFocusedCard.requestFocus();
                 return true;

@@ -134,8 +134,9 @@ def draw_two_rows_gimy(image, font_size, y_offset=0):
     t2 = min(bbox_m[1], bbox_y[1]) # top of row 2 ink
     b2 = max(bbox_m[3], bbox_y[3]) # bottom of row 2 ink
     
-    # Compact vertical line gap (1 pixel gap between bottom of Row 1 and top of Row 2)
-    dy = b1 - t2 + 1
+    # Beautiful vertical breathing gap (15% of font size) between bottom of Row 1 and top of Row 2
+    gap_y = int(font_size * 0.15)
+    dy = b1 - t2 + gap_y
     
     # Solved equations for Top padding == Bottom padding:
     y1 = (image.height - dy - b2 - t1) // 2 + y_offset

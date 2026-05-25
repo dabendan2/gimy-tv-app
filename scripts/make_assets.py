@@ -2,7 +2,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 WORKDIR = "/home/ubuntu/gimy_tv_app"
-res_drawable_dir = os.path.join(WORKDIR, "res", "drawable")
+res_drawable_dir = os.path.join(WORKDIR, "app", "src", "main", "res", "drawable")
 os.makedirs(res_drawable_dir, exist_ok=True)
 
 # Colors

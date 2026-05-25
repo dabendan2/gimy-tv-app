@@ -1,0 +1,17 @@
+# Android build outputs
+bin/
+obj/
+
+# Keystores (sensitive, but can be tracked if user prefers)
+# my-release-key.jks
+
+# Temporary UI dumps and screenshots
+uidump.xml
+screencap.png
+gimy_screencap*.png
+tv_banner_launcher*.png
+gimy_screencap.png
+
+# IDEs
+.idea/
+*.iml

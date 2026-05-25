@@ -113,7 +113,7 @@ def draw_two_rows_gimy(image, font_size, y_offset=0):
     bbox_y = draw.textbbox((0, 0), "y", font=font)
     
     # 1. Horizontal Calculations
-    col_dist = int(font_size * 0.95) # optimal column separation
+    col_dist = int(font_size * 0.84) # tighter column spacing (prevents overlap, keeps it highly cohesive)
     
     w_G_half = (bbox_G[2] - bbox_G[0]) / 2.0
     w_m_half = (bbox_m[2] - bbox_m[0]) / 2.0

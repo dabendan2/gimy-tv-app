@@ -96,7 +96,7 @@ def draw_single_row_gimy(image, target_width=400, y_offset=0):
         bbox = draw.textbbox((current_x, y), char, font=font)
         current_x += (bbox[2] - bbox[0]) + spacing
 
-def draw_two_rows_gimy(image, font_size, line_spacing_factor=0.9, y_offset=0):
+def draw_two_rows_gimy(image, font_size, y_offset=0):
     draw = ImageDraw.Draw(image)
     try:
         font = ImageFont.truetype(font_path, font_size)
@@ -122,28 +122,35 @@ def draw_two_rows_gimy(image, font_size, line_spacing_factor=0.9, y_offset=0):
         w2 += w
     w2 += spacing * (len(row2) - 1)
     
-    # Height of one line
+    # --- Dynamic Perfect Vertical Ink Centering ---
     bbox_G = draw.textbbox((0, 0), "G", font=font)
-    h_line = bbox_G[3] - bbox_G[1]
+    bbox_i = draw.textbbox((0, 0), "i", font=font)
+    t1 = min(bbox_G[1], bbox_i[1]) # top of row 1 ink
+    b1 = max(bbox_G[3], bbox_i[3]) # bottom of row 1 ink
     
-    # Total height of both rows
-    total_height = int(h_line * 2 * line_spacing_factor)
+    bbox_m = draw.textbbox((0, 0), "m", font=font)
+    bbox_y = draw.textbbox((0, 0), "y", font=font)
+    t2 = min(bbox_m[1], bbox_y[1]) # top of row 2 ink
+    b2 = max(bbox_m[3], bbox_y[3]) # bottom of row 2 ink
     
-    # Starting Y position to center vertically
-    start_y = (image.height - total_height) // 2 + y_offset
+    # Let y2 = y1 + dy. To make it compact, let the gap between Row 1 bottom and Row 2 top be 1 pixel
+    dy = b1 - t2 + 1
+    
+    # Center overall ink: (y1 + t1) = image.height - (y1 + dy + b2)
+    y1 = (image.height - dy - b2 - t1) // 2 + y_offset
+    y2 = y1 + dy
     
     # Draw Row 1 ("Gi")
     x1 = (image.width - w1) // 2
     current_x = x1
     for char, color in row1:
-        draw.text((current_x, start_y), char, fill=color, font=font)
-        bbox = draw.textbbox((current_x, start_y), char, font=font)
+        draw.text((current_x, y1), char, fill=color, font=font)
+        bbox = draw.textbbox((current_x, y1), char, font=font)
         current_x += (bbox[2] - bbox[0]) + spacing
         
     # Draw Row 2 ("my")
     x2 = (image.width - w2) // 2
     current_x = x2
-    y2 = start_y + int(h_line * line_spacing_factor)
     for char, color in row2:
         draw.text((current_x, y2), char, fill=color, font=font)
         bbox = draw.textbbox((current_x, y2), char, font=font)
@@ -160,7 +167,7 @@ banner.save(os.path.join(res_drawable_dir, "tv_banner.png"))
 print("Generating App Icon (512x512)...")
 # Flat solid dark background to make the colored font pop perfectly as requested
 icon = Image.new("RGB", (512, 512), COLOR_BG_DARK)
-draw_two_rows_gimy(icon, font_size=200, line_spacing_factor=1.0, y_offset=0)
+draw_two_rows_gimy(icon, font_size=220, y_offset=0)
 icon.save(os.path.join(res_drawable_dir, "ic_launcher.png"))
 
 print("Assets successfully generated in res/drawable/!")

@@ -2,14 +2,20 @@ package com.gimytv.horror;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.util.LruCache;
 import android.widget.ImageView;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.HashMap;
 
 public class ImageLoader {
-    private static final HashMap<String, Bitmap> imageCache = new HashMap<>();
+    // 8MB is perfect for low-resolution TV poster bitmaps and ensures memory-safe bounded caching
+    private static final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
+        @Override
+        protected int sizeOf(String key, Bitmap value) {
+            return value.getByteCount();
+        }
+    };
 
     public interface ImageLoadCallback {
         void onImageLoaded(Bitmap bitmap);
@@ -29,8 +35,9 @@ public class ImageLoader {
         }
         final String finalUrl = formattedUrlTemp;
 
-        if (imageCache.containsKey(finalUrl)) {
-            if (callback != null) callback.onImageLoaded(imageCache.get(finalUrl));
+        Bitmap cached = imageCache.get(finalUrl);
+        if (cached != null) {
+            if (callback != null) callback.onImageLoaded(cached);
             return;
         }
         new Thread(new Runnable() {
@@ -72,8 +79,9 @@ public class ImageLoader {
         }
         final String finalUrl = formattedUrlTemp;
 
-        if (imageCache.containsKey(finalUrl)) {
-            imageView.setImageBitmap(imageCache.get(finalUrl));
+        Bitmap cached = imageCache.get(finalUrl);
+        if (cached != null) {
+            imageView.setImageBitmap(cached);
             return;
         }
         new Thread(new Runnable() {

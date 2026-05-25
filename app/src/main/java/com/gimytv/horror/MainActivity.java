@@ -60,6 +60,8 @@ public class MainActivity extends Activity {
     private ArrayList<Movie> currentMoviesList = new ArrayList<>();
     private String selectedMovieId = "";
     private String selectedMovieTitle = "";
+    private String selectedMovieImageUrl = "";
+    private String selectedMovieSubtitle = "";
     private GimyMediaSession gimyMediaSession = null;
     private View lastFocusedCard = null;
 
@@ -432,6 +434,7 @@ public class MainActivity extends Activity {
 
         // Kick off default load
         refreshMovieGrid();
+        handleIntent(getIntent());
     }
 
     private View createFilterRow(String label, final String[] options, final String type) {
@@ -737,8 +740,14 @@ public class MainActivity extends Activity {
     }
 
     private void loadMovieDetails(final String id, final String title, final String imageUrl, final String note, final String subtitle) {
+        loadMovieDetails(id, title, imageUrl, note, subtitle, false);
+    }
+
+    private void loadMovieDetails(final String id, final String title, final String imageUrl, final String note, final String subtitle, final boolean focusPlay) {
         selectedMovieId = id;
         selectedMovieTitle = title;
+        selectedMovieImageUrl = imageUrl;
+        selectedMovieSubtitle = subtitle;
         if (rightScrollView != null) {
             rightScrollView.scrollTo(0, 0);
         }
@@ -763,6 +772,9 @@ public class MainActivity extends Activity {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
                             updatePlayButtons(playPath);
+                            if (focusPlay && btnPlayRef != null && btnPlayRef.isEnabled()) {
+                                btnPlayRef.requestFocus();
+                            }
                         }
                     }
                 });
@@ -1068,6 +1080,8 @@ public class MainActivity extends Activity {
             int dur = videoView.getDuration();
             if (dur > 0 && pos > 0) {
                 movieStore.savePlaybackProgress(selectedMovieId, pos, dur);
+                // Update Android TV global Play Next / Watch Next row
+                TvWatchNextHelper.updateWatchNext(this, selectedMovieId, selectedMovieTitle, selectedMovieImageUrl, selectedMovieSubtitle, pos, dur);
             }
         }
     }
@@ -1341,6 +1355,27 @@ public class MainActivity extends Activity {
         if (gimyMediaSession != null) {
             gimyMediaSession.release();
             gimyMediaSession = null;
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
+    private void handleIntent(android.content.Intent intent) {
+        if (intent != null) {
+            String movieId = intent.getStringExtra("movieId");
+            if (movieId != null && !movieId.isEmpty()) {
+                String title = intent.getStringExtra("movieTitle");
+                String imageUrl = intent.getStringExtra("imageUrl");
+                String subtitle = intent.getStringExtra("subtitle");
+                
+                // Load movie details asynchronously, and auto-focus play
+                loadMovieDetails(movieId, title != null ? title : "", imageUrl != null ? imageUrl : "", "", subtitle != null ? subtitle : "", true);
+            }
         }
     }
 }

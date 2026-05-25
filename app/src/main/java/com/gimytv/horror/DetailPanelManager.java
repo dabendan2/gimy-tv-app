@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.KeyEvent;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -174,6 +175,23 @@ public class DetailPanelManager {
                 }
             });
 
+            btnPlayNew.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            if (rightScrollView != null) {
+                                rightScrollView.requestFocus();
+                                return true;
+                            }
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            return true; // Lock at the bottom
+                        }
+                    }
+                    return false;
+                }
+            });
+
             playButtonLayout.addView(btnPlayNew);
             this.btnPlayRef = btnPlayNew;
 
@@ -209,6 +227,23 @@ public class DetailPanelManager {
                         if (listener != null) {
                             listener.onPlayMovieRequested(playPath, false);
                         }
+                    }
+                });
+
+                btnRestart.setOnKeyListener(new View.OnKeyListener() {
+                    @Override
+                    public boolean onKey(View v, int keyCode, KeyEvent event) {
+                        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                if (rightScrollView != null) {
+                                    rightScrollView.requestFocus();
+                                    return true;
+                                }
+                            } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                                return true; // Lock at the bottom
+                            }
+                        }
+                        return false;
                     }
                 });
 
@@ -268,6 +303,23 @@ public class DetailPanelManager {
 
                 // Focus preservation
                 updatePlayButtons(playPath, true);
+            }
+        });
+
+        btnListState.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                        if (rightScrollView != null) {
+                            rightScrollView.requestFocus();
+                            return true;
+                        }
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        return true; // Lock at the bottom
+                    }
+                }
+                return false;
             }
         });
 

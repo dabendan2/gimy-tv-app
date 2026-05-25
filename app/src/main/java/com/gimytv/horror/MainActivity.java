@@ -173,12 +173,13 @@ public class MainActivity extends Activity {
         tvDetailSynopsis.setTextColor(Color.parseColor("#DADCE0")); // Brighter read text
         tvDetailSynopsis.setPadding(20, 20, 20, 20); // padded inside the focused background
         tvDetailSynopsis.setLineSpacing(6f, 1.1f);
-        
+        rightScrollContent.addView(tvDetailSynopsis);
+
         // --- TV Premium Scroll and Focus Setup ---
-        tvDetailSynopsis.setFocusable(true);
-        tvDetailSynopsis.setClickable(true);
-        
-        tvDetailSynopsis.setOnClickListener(new View.OnClickListener() {
+        rightScrollView.setFocusable(true);
+        rightScrollView.setFocusableInTouchMode(true);
+
+        rightScrollView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (detailPanelManager != null && detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().isEnabled()) {
@@ -186,21 +187,19 @@ public class MainActivity extends Activity {
                 }
             }
         });
-        
-        tvDetailSynopsis.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+
+        rightScrollView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
                 if (hasFocus) {
                     v.setBackgroundColor(Color.parseColor("#303134")); // Highlight
-                    tvDetailSynopsis.setTextColor(Color.WHITE);
                 } else {
                     v.setBackgroundColor(Color.TRANSPARENT);
-                    tvDetailSynopsis.setTextColor(Color.parseColor("#DADCE0"));
                 }
             }
         });
 
-        tvDetailSynopsis.setOnKeyListener(new View.OnKeyListener() {
+        rightScrollView.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -229,7 +228,6 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
-        rightScrollContent.addView(tvDetailSynopsis);
 
         // Action Buttons Container (Holds compact buttons, aligned to the LEFT!)
         playButtonLayout = new LinearLayout(this);
@@ -261,7 +259,7 @@ public class MainActivity extends Activity {
             @Override
             public void onMovieCardClicked(Movie movie, View card) {
                 if (detailPanelManager != null && detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().isEnabled()) {
-                    tvDetailSynopsis.requestFocus();
+                    rightScrollView.requestFocus();
                 } else {
                     android.widget.Toast.makeText(MainActivity.this, "影片載入中，請稍候...", android.widget.Toast.LENGTH_SHORT).show();
                 }
@@ -362,6 +360,16 @@ public class MainActivity extends Activity {
                     if ("Sort".equals(type)) selectedSort = opt;
                     else if ("Region".equals(type)) selectedRegion = opt;
                     else if ("Year".equals(type)) selectedYear = opt;
+
+                    // Refresh styles of all items in this row!
+                    for (int i = 0; i < optionsLayout.getChildCount(); i++) {
+                        View child = optionsLayout.getChildAt(i);
+                        if (child instanceof TextView) {
+                            TextView tv = (TextView) child;
+                            String childOpt = tv.getText().toString();
+                            updateFilterItemStyle(tv, childOpt, type, tv.hasFocus());
+                        }
+                    }
 
                     refreshMovieGrid();
                 }

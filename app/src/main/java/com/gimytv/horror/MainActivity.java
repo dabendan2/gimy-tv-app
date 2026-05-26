@@ -23,15 +23,8 @@ import java.util.ArrayList;
 public class MainActivity extends Activity {
     private static final String TAG = "GimyHorror_UI";
 
-    // Filters state
-    private String selectedSort = "熱門推薦";
-    private String selectedRegion = "全部";
-    private String selectedYear = "全部";
-
-    // Filter Options
-    private final String[] SORTS = {"熱門推薦", "最新上架", "好評高分"};
-    private final String[] REGIONS = {"全部", "泰國", "日本", "韓國", "美國", "台灣", "香港"};
-    private final String[] YEARS = {"全部", "2026", "2025", "2024", "2023", "2022", "2021", "2020"};
+    // Encapsulated Components
+    private FilterBarManager filterBarManager;
 
     // Layout elements
     private LinearLayout mainSplitLayout;
@@ -109,10 +102,12 @@ public class MainActivity extends Activity {
         filterContainer.setOrientation(LinearLayout.VERTICAL);
         filterContainer.setPadding(0, 0, 0, 20);
 
-        // Filter Rows
-        filterContainer.addView(createFilterRow("排序：", SORTS, "Sort"));
-        filterContainer.addView(createFilterRow("地區：", REGIONS, "Region"));
-        filterContainer.addView(createFilterRow("年份：", YEARS, "Year"));
+        filterBarManager = new FilterBarManager(this, filterContainer, new FilterBarManager.FilterBarListener() {
+            @Override
+            public void onFilterChanged(String sort, String region, String year) {
+                refreshMovieGrid();
+            }
+        });
         leftPanel.addView(filterContainer);
 
         // Grid Scroll Container
@@ -328,94 +323,13 @@ public class MainActivity extends Activity {
         handleIntent(getIntent());
     }
 
-    private View createFilterRow(String label, final String[] options, final String type) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, 5, 0, 5);
 
-        TextView lbl = new TextView(this);
-        lbl.setText(label);
-        lbl.setTextSize(14);
-        lbl.setTextColor(Color.parseColor("#9AA0A6"));
-        lbl.setPadding(0, 0, 20, 0);
-        row.addView(lbl);
-
-        HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout optionsLayout = new LinearLayout(this);
-        optionsLayout.setOrientation(LinearLayout.HORIZONTAL);
-
-        for (final String opt : options) {
-            final TextView item = new TextView(this);
-            item.setText(opt);
-            item.setTextSize(14);
-            item.setFocusable(true);
-            item.setClickable(true);
-            item.setPadding(30, 10, 30, 10);
-            
-            updateFilterItemStyle(item, opt, type, false);
-
-            item.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-                @Override
-                public void onFocusChange(View v, boolean hasFocus) {
-                    if (hasFocus) {
-                        Log.i(TAG, "🎯 FocusState: Filter focused -> " + type + ": " + opt);
-                    }
-                    updateFilterItemStyle(item, opt, type, hasFocus);
-                }
-            });
-
-            item.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if ("Sort".equals(type)) selectedSort = opt;
-                    else if ("Region".equals(type)) selectedRegion = opt;
-                    else if ("Year".equals(type)) selectedYear = opt;
-
-                    // Refresh styles of all items in this row!
-                    for (int i = 0; i < optionsLayout.getChildCount(); i++) {
-                        View child = optionsLayout.getChildAt(i);
-                        if (child instanceof TextView) {
-                            TextView tv = (TextView) child;
-                            String childOpt = tv.getText().toString();
-                            updateFilterItemStyle(tv, childOpt, type, tv.hasFocus());
-                        }
-                    }
-
-                    refreshMovieGrid();
-                }
-            });
-
-            optionsLayout.addView(item);
-        }
-        scroll.addView(optionsLayout);
-        row.addView(scroll);
-        return row;
-    }
-
-    private void updateFilterItemStyle(TextView item, String opt, String type, boolean hasFocus) {
-        boolean isSelected = false;
-        if ("Sort".equals(type)) isSelected = opt.equals(selectedSort);
-        else if ("Region".equals(type)) isSelected = opt.equals(selectedRegion);
-        else if ("Year".equals(type)) isSelected = opt.equals(selectedYear);
-
-        if (hasFocus) {
-            item.setBackgroundColor(Color.parseColor("#3C4043")); // focused dark grey
-            item.setTextColor(Color.WHITE);
-        } else if (isSelected) {
-            if ("Sort".equals(type)) item.setBackgroundColor(Color.parseColor("#1A73E8")); // Blue tag
-            else if ("Region".equals(type)) item.setBackgroundColor(Color.parseColor("#C5221F")); // Red tag
-            else if ("Year".equals(type)) item.setBackgroundColor(Color.parseColor("#137333")); // Green tag
-            item.setTextColor(Color.WHITE);
-        } else {
-            item.setBackgroundColor(Color.TRANSPARENT);
-            item.setTextColor(Color.parseColor("#9AA0A6"));
-        }
-    }
 
     private void refreshMovieGrid() {
-        Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + selectedSort + " | Region=" + selectedRegion + " | Year=" + selectedYear);
+        String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
+        String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
+        String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
+        Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + sort + " | Region=" + region + " | Year=" + year);
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("陰間頻道連接中，請稍候...");
@@ -429,34 +343,10 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    String sortParam = "熱門推薦".equals(selectedSort) ? "hot" : ("最新上架".equals(selectedSort) ? "time" : "score");
-                    String regionParam = "全部".equals(selectedRegion) ? "" : selectedRegion;
-                    String yearParam = "全部".equals(selectedYear) ? "" : selectedYear;
-
-                    // Construct MacCMS Standard Show URL with exactly 11 hyphens (12 parameters fields)
-                    String[] parts = new String[12];
-                    parts[0] = "10"; // '10' is the 'Horror' Category ID on gimyplus.com
-                    parts[1] = URLEncoder.encode(regionParam, "UTF-8");
-                    parts[2] = "hot".equals(sortParam) ? "hits" : sortParam;
-                    parts[3] = "";
-                    parts[4] = "";
-                    parts[5] = "";
-                    parts[6] = "";
-                    parts[7] = "";
-                    parts[8] = "";
-                    parts[9] = "";
-                    parts[10] = "";
-                    parts[11] = yearParam.isEmpty() ? ".html" : yearParam + ".html";
-
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < parts.length; i++) {
-                        sb.append(parts[i]);
-                        if (i < parts.length - 1) {
-                            sb.append("-");
-                        }
-                    }
-
-                    String queryUrl = "https://gimyplus.com/show/" + sb.toString();
+                    String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
+                    String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
+                    String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
+                    String queryUrl = GimyParser.constructCategoryUrl(sort, region, year);
                     Log.d(TAG, "Constructed query URL: " + queryUrl);
                     String html = GimyParser.fetchHtml(queryUrl);
                     final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);

@@ -183,4 +183,39 @@ public class GimyParser {
         }
         return lines;
     }
+
+    public static String constructCategoryUrl(String sort, String region, String year) {
+        try {
+            String sortParam = "熱門推薦".equals(sort) ? "hot" : ("最新上架".equals(sort) ? "time" : "score");
+            String regionParam = "全部".equals(region) ? "" : region;
+            String yearParam = "全部".equals(year) ? "" : year;
+
+            // Construct MacCMS Standard Show URL with exactly 11 hyphens (12 parameters fields)
+            String[] parts = new String[12];
+            parts[0] = "10"; // '10' is the 'Horror' Category ID on gimyplus.com
+            parts[1] = java.net.URLEncoder.encode(regionParam, "UTF-8");
+            parts[2] = "hot".equals(sortParam) ? "hits" : sortParam;
+            parts[3] = "";
+            parts[4] = "";
+            parts[5] = "";
+            parts[6] = "";
+            parts[7] = "";
+            parts[8] = "";
+            parts[9] = "";
+            parts[10] = "";
+            parts[11] = yearParam.isEmpty() ? ".html" : yearParam + ".html";
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < parts.length; i++) {
+                sb.append(parts[i]);
+                if (i < parts.length - 1) {
+                    sb.append("-");
+                }
+            }
+            return "https://gimyplus.com/show/" + sb.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to construct category URL", e);
+            return "https://gimyplus.com/show/10--hits---------.html"; // Fallback standard URL
+        }
+    }
 }

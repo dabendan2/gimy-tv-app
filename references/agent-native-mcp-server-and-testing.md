@@ -14,8 +14,9 @@ Rather than forcing AI agents to emulate clumsy D-Pad remote keypresses to navig
 
 ## 🛠️ Tool Specifications (JSON-Schema)
 
-### 1. `gimy_search_movies(query, limit, deviceIp)`
+### 1. `gimy_search_movies(query, limit, silent, deviceIp)`
 * **Description**: Queries Gimy plus using the verified MacCMS search endpoint (`/search/----------1---.html?wd=keyword`) and extracts structured results.
+* **silent**: Defaults to `True`. If set to `False`, the results and search query keyword are synchronized and shown on the TV screen via ADB Intent (`searchQuery`), with the keyword displayed on the right-aligned title bar, and auto-cleared when any UI filter options are changed.
 * **Returns**: Structured list of movies with:
   * `movieId` (e.g. `256828`)
   * `movieTitle` (e.g. `破墓`)

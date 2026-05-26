@@ -125,7 +125,7 @@ def fetch_movie_details(movie_id: str):
     return title, image_url, subtitle
 
 @mcp.tool()
-def gimy_search_movies(query: str, limit: int = 5, deviceIp: str = "100.87.89.52") -> str:
+def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp: str = "100.87.89.52") -> str:
     """
     Search Gimy TV for movie keywords and return structured results with synopsis, playback progress, and list states.
     All times and durations are returned cleanly in seconds or HH:MM:SS format instead of raw milliseconds.
@@ -133,6 +133,7 @@ def gimy_search_movies(query: str, limit: int = 5, deviceIp: str = "100.87.89.52
     Args:
         query: Movie keyword to search (e.g. '破墓', '黑祭司')
         limit: Max results to return (default: 5)
+        silent: If False, simultaneously display the keyword search results on the TV screen (default: True)
         deviceIp: The TV's IP to pull watch states (default: 100.87.89.52)
     """
     encoded_keyword = urllib.parse.quote(query)
@@ -211,6 +212,17 @@ def gimy_search_movies(query: str, limit: int = 5, deviceIp: str = "100.87.89.52
     except Exception as e:
         return json.dumps({"error": f"Failed to search: {str(e)}"}, ensure_ascii=False)
         
+    if not silent:
+        # Launch Gimy TV App on the TV with searchQuery extra
+        cmd = [
+            "adb", "-s", f"{deviceIp}:5555", "shell", "am", "start", "-n", "com.gimytv.horror/.MainActivity",
+            "-e", "searchQuery", f"'{query}'"
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        except Exception:
+            pass
+
     return json.dumps(results, ensure_ascii=False, indent=2)
 
 @mcp.tool()

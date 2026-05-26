@@ -127,7 +127,7 @@ adb shell am start -n com.gimytv.horror/.MainActivity \
 
 ### 3. MCP 伺服器工具鏈 (`gimy_mcp_server.py`)
 專案附帶了基於 FastMCP 的標準 MCP 伺服器，所有輸入與回傳值均優化為 **秒 (Seconds)** 尺度，以避免代理算術偏誤：
-*   `gimy_search_movies(query)`: 搜尋影片，同步合併導出資料，回傳帶有觀影進度（百分比/時分秒）、狀態符號與詳細簡介的 JSON。
+*   `gimy_search_movies(query, limit, silent)`: 搜尋影片，同步合併導出資料，回傳帶有觀影進度（百分比/時分秒）、狀態符號與詳細簡介的 JSON。`silent` 參數預設為 `true`；若帶入 `false`，則會透過 Intent 同步將關鍵字搜尋結果顯示在電視畫面上，並於標題列右側以靠右對齊的小字顯示該關鍵字。
 *   `gimy_launch_movie(movieId, seekPosition, autoPlay)`: 一鍵直達投射放映，`seekPosition` 支援極度口語的 `"last 5m"`、`"倒數5分鐘"` 或 `"01:30:00"`，並自動在 Python 端將其安全轉譯。
 *   `gimy_playback_control(action)`: 語意化遙控控制，提供 `PLAY`, `PAUSE`, `SEEK_FORWARD` (D-pad 右 ➔ 中確認), `SEEK_BACKWARD`, `VOLUME_UP/DOWN`。
 *   `gimy_get_tv_state()`: 當前電視活動焦點與 logcat 行為觀測。

@@ -38,6 +38,79 @@ public class GimyParser {
 
     public static ArrayList<Movie> parseMoviesFromHtml(String html) {
         ArrayList<Movie> movies = new ArrayList<>();
+
+        // 1. Check if it's the search page
+        if (html.contains("details-info-min")) {
+            Log.i(TAG, "Detected Gimy search results page. Using specialized search parser.");
+            String[] blocks = html.split("class=\"details-info-min");
+            // Skip the first element which is the header html
+            for (int i = 1; i < blocks.length; i++) {
+                String block = blocks[i];
+                
+                String id = "";
+                int hrefIdx = block.indexOf("href=\"/vod/");
+                if (hrefIdx != -1) {
+                    int start = hrefIdx + 11;
+                    int end = block.indexOf(".html\"", start);
+                    if (end != -1) id = block.substring(start, end);
+                }
+                if (id.isEmpty()) continue;
+                
+                String title = "";
+                int titleIdx = block.indexOf("title=\"");
+                if (titleIdx != -1) {
+                    int start = titleIdx + 7;
+                    int end = block.indexOf("\"", start);
+                    if (end != -1) title = block.substring(start, end);
+                }
+                
+                String imageUrl = "";
+                int imgIdx = block.indexOf("data-original=\"");
+                if (imgIdx != -1) {
+                    int start = imgIdx + 15;
+                    int end = block.indexOf("\"", start);
+                    if (end != -1) imageUrl = block.substring(start, end);
+                } else {
+                    int styleIdx = block.indexOf("url('");
+                    if (styleIdx != -1) {
+                        int start = styleIdx + 5;
+                        int end = block.indexOf("'", start);
+                        if (end != -1) imageUrl = block.substring(start, end);
+                    }
+                }
+                
+                String note = "HD";
+                // On search page, state is usually after "<span>狀態：</span>" or in class="note"
+                int noteIdx = block.indexOf("class=\"note");
+                if (noteIdx != -1) {
+                    int start = block.indexOf(">", noteIdx) + 1;
+                    int end = block.indexOf("</span>", start);
+                    if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
+                } else {
+                    int stateIdx = block.indexOf("<span>狀態：</span>");
+                    if (stateIdx != -1) {
+                        int start = stateIdx + 14;
+                        int end = block.indexOf("</li>", start);
+                        if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
+                    }
+                }
+                
+                String subtitle = "";
+                int subIdx = block.indexOf("主演：</span>");
+                if (subIdx != -1) {
+                    int start = subIdx + 9;
+                    int end = block.indexOf("</li>", start);
+                    if (end != -1) {
+                        subtitle = block.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                    }
+                }
+                
+                movies.add(new Movie(id, title, imageUrl, note, subtitle));
+            }
+            Log.d(TAG, "Search parser successfully parsed " + movies.size() + " movies from search results.");
+            return movies;
+        }
+
         int index = html.indexOf("class=\"box-video-list\"");
         if (index == -1) {
             index = html.indexOf("layout-box");

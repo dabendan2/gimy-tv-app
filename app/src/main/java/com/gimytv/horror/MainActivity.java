@@ -48,6 +48,8 @@ public class MainActivity extends Activity {
     private GridPanelManager gridPanelManager;
     public int pendingSeekMs = -1;
     private boolean isDeepLinkActive = false;
+    private String searchQuery = null;
+    private TextView tvSearchKeyword;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +78,8 @@ public class MainActivity extends Activity {
         LinearLayout titleLayout = new LinearLayout(this);
         titleLayout.setOrientation(LinearLayout.HORIZONTAL);
         titleLayout.setPadding(0, 0, 0, 20);
+        titleLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         String[] logoLetters = {"G", "i", "m", "y"};
         String[] logoColors = {"#4285F4", "#EA4335", "#FBBC05", "#4285F4"};
@@ -95,6 +99,17 @@ public class MainActivity extends Activity {
         subTitle.setTextColor(Color.WHITE);
         titleLayout.addView(subTitle);
 
+        tvSearchKeyword = new TextView(this);
+        tvSearchKeyword.setText("");
+        tvSearchKeyword.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tvSearchKeyword.setTextColor(Color.parseColor("#9AA0A6"));
+        LinearLayout.LayoutParams keywordParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        tvSearchKeyword.setLayoutParams(keywordParams);
+        tvSearchKeyword.setGravity(Gravity.RIGHT | Gravity.BOTTOM);
+        tvSearchKeyword.setPadding(0, 0, 10, 5);
+        titleLayout.addView(tvSearchKeyword);
+
         leftPanel.addView(titleLayout);
 
         // Filter Rows Container
@@ -105,6 +120,10 @@ public class MainActivity extends Activity {
         filterBarManager = new FilterBarManager(this, filterContainer, new FilterBarManager.FilterBarListener() {
             @Override
             public void onFilterChanged(String sort, String region, String year) {
+                searchQuery = null;
+                if (tvSearchKeyword != null) {
+                    tvSearchKeyword.setText("");
+                }
                 refreshMovieGrid();
             }
         });
@@ -329,7 +348,7 @@ public class MainActivity extends Activity {
         String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
         String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
         String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
-        Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + sort + " | Region=" + region + " | Year=" + year);
+        Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + sort + " | Region=" + region + " | Year=" + year + " | SearchQuery=" + searchQuery);
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("陰間頻道連接中，請稍候...");
@@ -343,10 +362,15 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
-                    String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
-                    String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
-                    String queryUrl = GimyParser.constructCategoryUrl(sort, region, year);
+                    String queryUrl;
+                    if (searchQuery != null && !searchQuery.isEmpty()) {
+                        queryUrl = "https://gimyplus.com/search/----------1---.html?wd=" + java.net.URLEncoder.encode(searchQuery, "UTF-8");
+                    } else {
+                        String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
+                        String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
+                        String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
+                        queryUrl = GimyParser.constructCategoryUrl(sort, region, year);
+                    }
                     Log.d(TAG, "Constructed query URL: " + queryUrl);
                     String html = GimyParser.fetchHtml(queryUrl);
                     final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);
@@ -526,6 +550,19 @@ public class MainActivity extends Activity {
 
     private void handleIntent(android.content.Intent intent) {
         if (intent != null) {
+            if (intent.hasExtra("searchQuery")) {
+                searchQuery = intent.getStringExtra("searchQuery");
+                Log.i(TAG, "📥 handleIntent: searchQuery request -> " + searchQuery);
+                if (tvSearchKeyword != null) {
+                    if (searchQuery != null && !searchQuery.isEmpty()) {
+                        tvSearchKeyword.setText(searchQuery);
+                    } else {
+                        tvSearchKeyword.setText("");
+                    }
+                }
+                refreshMovieGrid();
+            }
+
             if (intent.hasExtra("listState") && intent.hasExtra("movieId")) {
                 String movieId = intent.getStringExtra("movieId");
                 int state = -1;

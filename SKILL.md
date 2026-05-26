@@ -133,6 +133,7 @@ Instead of bloated custom `VolumeProvider` hacks that capture volume keys manual
     - The app supports a dedicated Model Context Protocol (MCP) server for hands-free automation.
     - All time parameters and return values are unified on a **Seconds** scale to prevent mathematical and type errors during agent invocation.
     - Enables high-performance search with **detailed synopses**, direct ADB deep-link launches, and zero-latency playback scrubbing.
+    - `gimy_search_movies` supports a `silent` boolean parameter (defaulting to `true`). When `silent` is `false`, search results are synchronized and shown on the TV screen via Intent (`searchQuery`), with the keyword displayed on the top title bar's right side (small text, right-aligned), and is automatically cleared whenever any UI filter bar option is changed.
     - See `[references/agent-native-mcp-server-and-testing.md](references/agent-native-mcp-server-and-testing.md)` for tool schemas, self-healing intent delivery, and closed-loop testing.
 
 ## 🎯 Verification Checklist

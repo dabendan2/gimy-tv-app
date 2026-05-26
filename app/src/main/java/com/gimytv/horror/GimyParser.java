@@ -247,6 +247,78 @@ public class GimyParser {
         return new String[]{synopsis, playPath, region, year};
     }
 
+    public static ArrayList<Movie> parseRecommendations(String detailHtml) {
+        ArrayList<Movie> list = new ArrayList<>();
+        int idx = detailHtml.indexOf("swiper-wrapper");
+        if (idx != -1) {
+            String sliderHtml = detailHtml.substring(idx);
+            int endIdx = sliderHtml.indexOf("</ul>");
+            if (endIdx != -1) {
+                sliderHtml = sliderHtml.substring(0, endIdx);
+            }
+            
+            String[] slides = sliderHtml.split("<li");
+            for (int i = 1; i < slides.length; i++) {
+                String slide = slides[i];
+                
+                String id = "";
+                int hrefIdx = slide.indexOf("href=\"/vod/");
+                if (hrefIdx != -1) {
+                    int start = hrefIdx + 11;
+                    int end = slide.indexOf(".html\"", start);
+                    if (end != -1) id = slide.substring(start, end);
+                }
+                if (id.isEmpty()) continue;
+                
+                String title = "";
+                int titleIdx = slide.indexOf("title=\"");
+                if (titleIdx != -1) {
+                    int start = titleIdx + 7;
+                    int end = slide.indexOf("\"", start);
+                    if (end != -1) title = slide.substring(start, end);
+                }
+                
+                String imageUrl = "";
+                int imgIdx = slide.indexOf("data-background=\"");
+                if (imgIdx == -1) {
+                    imgIdx = slide.indexOf("data-original=\"");
+                }
+                if (imgIdx != -1) {
+                    int start = imgIdx + 17;
+                    if (slide.indexOf("data-original=\"") == imgIdx) start = imgIdx + 15;
+                    int end = slide.indexOf("\"", start);
+                    if (end != -1) imageUrl = slide.substring(start, end);
+                } else {
+                    int styleIdx = slide.indexOf("url('");
+                    if (styleIdx != -1) {
+                        int start = styleIdx + 5;
+                        int end = slide.indexOf("'", start);
+                        if (end != -1) imageUrl = slide.substring(start, end);
+                    }
+                }
+                
+                String note = "HD";
+                int noteIdx = slide.indexOf("class=\"note");
+                if (noteIdx != -1) {
+                    int start = slide.indexOf(">", noteIdx) + 1;
+                    int end = slide.indexOf("</span>", start);
+                    if (end != -1) note = slide.substring(start, end).trim().replaceAll("<[^>]*>", "");
+                }
+                
+                String subtitle = "";
+                int subIdx = slide.indexOf("class=\"subtitle");
+                if (subIdx != -1) {
+                    int start = slide.indexOf(">", subIdx) + 1;
+                    int end = slide.indexOf("</div>", start);
+                    if (end != -1) subtitle = slide.substring(start, end).replace("&nbsp;", "").trim();
+                }
+                
+                list.add(new Movie(id, title, imageUrl, note, subtitle));
+            }
+        }
+        return list;
+    }
+
     public static String parseM3U8Url(String playHtml) {
         String m3u8Url = "";
         int pdIdx = playHtml.indexOf("var player_data=");

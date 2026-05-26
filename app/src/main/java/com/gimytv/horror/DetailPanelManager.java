@@ -1,5 +1,4 @@
 package com.gimytv.horror;
-
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -11,12 +10,18 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import java.util.ArrayList;
 
 public class DetailPanelManager {
 
     private final ArrayList<String> availableLines = new ArrayList<>();
     private int currentLineIndex = 0;
+
+    private TextView tvRecTitle;
+    private HorizontalScrollView recScrollView;
+    private LinearLayout recContainer;
 
     public interface DetailPanelListener {
         void onPlayMovieRequested(String playPath, boolean resume);
@@ -50,6 +55,40 @@ public class DetailPanelManager {
         this.tvDetailSynopsis = tvDetailSynopsis;
         this.movieStore = movieStore;
         this.listener = listener;
+
+        // Create the recommendations title and horizontal container dynamically!
+        if (rightScrollView != null && rightScrollView.getChildCount() > 0) {
+            final LinearLayout rightScrollContent = (LinearLayout) rightScrollView.getChildAt(0);
+            
+            // 1. Title for recommendations
+            tvRecTitle = new TextView(activity);
+            tvRecTitle.setText("更多推薦");
+            tvRecTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            tvRecTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            tvRecTitle.setTextColor(Color.WHITE);
+            LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            titleParams.setMargins(0, 40, 0, 15); // space above and below title
+            tvRecTitle.setLayoutParams(titleParams);
+            tvRecTitle.setVisibility(View.GONE); // Hidden initially
+            rightScrollContent.addView(tvRecTitle);
+            
+            // 2. Horizontal Scroll View for recommendation cards
+            recScrollView = new HorizontalScrollView(activity);
+            recScrollView.setHorizontalScrollBarEnabled(false);
+            LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            recScrollView.setLayoutParams(scrollParams);
+            recScrollView.setVisibility(View.GONE); // Hidden initially
+            
+            // Horizontal container inside scrollview
+            recContainer = new LinearLayout(activity);
+            recContainer.setOrientation(LinearLayout.HORIZONTAL);
+            recContainer.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            recScrollView.addView(recContainer);
+            rightScrollContent.addView(recScrollView);
+        }
 
         // Initialize empty state
         updatePlayButtons("");
@@ -90,8 +129,18 @@ public class DetailPanelManager {
         }
 
         tvDetailTitle.setText("《" + title + "》");
-        tvDetailMeta.setText(String.format(" 地區/演員：%s\n 狀態：%s", subtitle.isEmpty() ? "未知" : subtitle, note));
+        tvDetailMeta.setText(String.format(" 演員：%s\n 狀態：%s", subtitle.isEmpty() ? "未知" : subtitle, note));
         tvDetailSynopsis.setText("正在通靈獲取恐怖故事簡介...");
+
+        if (recContainer != null) {
+            recContainer.removeAllViews();
+        }
+        if (tvRecTitle != null) {
+            tvRecTitle.setVisibility(View.GONE);
+        }
+        if (recScrollView != null) {
+            recScrollView.setVisibility(View.GONE);
+        }
 
         new Thread(new Runnable() {
             @Override
@@ -103,6 +152,7 @@ public class DetailPanelManager {
                 final String synopsis = details[0];
                 final String playPath = details[1];
                 final ArrayList<String> parsedLines = GimyParser.parseAllLines(detailHtml);
+                final ArrayList<Movie> recs = GimyParser.parseRecommendations(detailHtml);
 
                 activity.runOnUiThread(new Runnable() {
                     @Override
@@ -122,6 +172,10 @@ public class DetailPanelManager {
                             }
                             String activePath = availableLines.isEmpty() ? "" : availableLines.get(currentLineIndex);
                             updatePlayButtons(activePath);
+                            
+                            // Populate recommendations under the buttons!
+                            populateRecommendations(recs);
+
                             if (autoPlay && activePath != null && !activePath.isEmpty()) {
                                 android.util.Log.i("GimyHorror_UI", "⚡ AutoPlay triggered directly from Intent!");
                                 int pos = movieStore.getProgressPos(id);
@@ -445,5 +499,101 @@ public class DetailPanelManager {
 
     public Button getPlayButton() {
         return btnPlayRef;
+    }
+
+    private void populateRecommendations(final ArrayList<Movie> recs) {
+        if (recContainer == null) return;
+        recContainer.removeAllViews();
+        
+        if (recs == null || recs.isEmpty()) {
+            if (tvRecTitle != null) tvRecTitle.setVisibility(View.GONE);
+            if (recScrollView != null) recScrollView.setVisibility(View.GONE);
+            return;
+        }
+        
+        if (tvRecTitle != null) tvRecTitle.setVisibility(View.VISIBLE);
+        if (recScrollView != null) recScrollView.setVisibility(View.VISIBLE);
+        
+        for (final Movie m : recs) {
+            // Create a small card for each recommendation
+            final LinearLayout card = new LinearLayout(activity);
+            card.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    200, ViewGroup.LayoutParams.WRAP_CONTENT); // 200px width
+            params.setMargins(0, 0, 20, 0); // margin right
+            card.setLayoutParams(params);
+            card.setPadding(10, 10, 10, 10);
+            card.setFocusable(true);
+            card.setClickable(true);
+            card.setBackgroundColor(Color.TRANSPARENT);
+            
+            // Poster thumbnail
+            ImageView ivPoster = new ImageView(activity);
+            LinearLayout.LayoutParams imgParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 260); // 260px height
+            ivPoster.setLayoutParams(imgParams);
+            ivPoster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            ivPoster.setBackgroundColor(Color.BLACK);
+            ImageLoader.loadImage(m.imageUrl, ivPoster);
+            card.addView(ivPoster);
+            
+            // Title
+            final TextView tvTitle = new TextView(activity);
+            tvTitle.setText(m.title);
+            tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            tvTitle.setTextColor(Color.parseColor("#9AA0A6")); // Subtle gray
+            tvTitle.setSingleLine(true);
+            tvTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tvTitle.setPadding(0, 8, 0, 0);
+            card.addView(tvTitle);
+            
+            // Focus events
+            card.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
+                        card.setBackgroundColor(Color.parseColor("#303134")); // Highlight
+                        tvTitle.setTextColor(Color.WHITE);
+                        
+                        // Scroll horizontally to keep in view
+                        int left = card.getLeft();
+                        int scrollX = recScrollView.getScrollX();
+                        int width = recScrollView.getWidth();
+                        if (left < scrollX) {
+                            recScrollView.smoothScrollTo(left, 0);
+                        } else if (left + 200 > scrollX + width) {
+                            recScrollView.smoothScrollTo(left + 200 - width + 40, 0);
+                        }
+                    } else {
+                        card.setBackgroundColor(Color.TRANSPARENT);
+                        tvTitle.setTextColor(Color.parseColor("#9AA0A6"));
+                    }
+                }
+            });
+            
+            // Click event - load details of this recommended movie
+            card.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    // Load details of this recommended movie on the right details panel and auto-focus play button
+                    loadMovieDetails(m.id, m.title, m.imageUrl, m.note, m.subtitle, true, false);
+                }
+            });
+            
+            // Key events for DPAD Down/Up to prevent focus leaks
+            card.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            return true; // Lock focus at the bottom
+                        }
+                    }
+                    return false;
+                }
+            });
+            
+            recContainer.addView(card);
+        }
     }
 }

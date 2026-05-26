@@ -79,6 +79,7 @@ public class GridPanelManager {
 
                 // Movie Card Container
                 final LinearLayout card = new LinearLayout(context);
+                card.setTag(m); // Store Movie object in tag
                 card.setOrientation(LinearLayout.VERTICAL);
                 LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
                 cardParams.setMargins(10, 0, 10, 0);

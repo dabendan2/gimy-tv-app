@@ -214,7 +214,37 @@ public class GimyParser {
         } else {
             Log.d(TAG, "Parsed play path successfully: " + playPath);
         }
-        return new String[]{synopsis, playPath};
+
+        String region = "";
+        int regionIdx = detailHtml.indexOf("國家/地區：</span>");
+        if (regionIdx == -1) {
+            regionIdx = detailHtml.indexOf("地區：</span>");
+        }
+        if (regionIdx != -1) {
+            int start = detailHtml.indexOf("</span>", regionIdx);
+            if (start != -1) {
+                start += 7;
+                int end = detailHtml.indexOf("</li>", start);
+                if (end != -1) {
+                    region = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                }
+            }
+        }
+
+        String year = "";
+        int yearIdx = detailHtml.indexOf("年代：</span>");
+        if (yearIdx != -1) {
+            int start = detailHtml.indexOf("</span>", yearIdx);
+            if (start != -1) {
+                start += 7;
+                int end = detailHtml.indexOf("</li>", start);
+                if (end != -1) {
+                    year = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                }
+            }
+        }
+
+        return new String[]{synopsis, playPath, region, year};
     }
 
     public static String parseM3U8Url(String playHtml) {

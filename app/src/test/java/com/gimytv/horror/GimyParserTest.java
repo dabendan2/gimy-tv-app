@@ -51,16 +51,24 @@ public class GimyParserTest {
             "<html>" +
             "  <span class=\"details-content-all\">這是一部極度驚悚、讓人毛骨悚然的鬼片劇情介紹。</span>" +
             "  <a href=\"/ep/play-1-1\">第1集</a>" +
+            "  <li><span>國家/地區：</span>台灣</li>" +
+            "  <li><span>年代：</span>2023</li>" +
             "</html>";
 
         String[] results = GimyParser.parseMovieDetails(mockDetailHtml);
         
-        if (results == null || results.length != 2) throw new AssertionError("Expected results of size 2");
+        if (results == null || results.length != 4) throw new AssertionError("Expected results of size 4");
         if (!"這是一部極度驚悚、讓人毛骨悚然的鬼片劇情介紹。".equals(results[0])) {
             throw new AssertionError("Synopsis parsed incorrectly: " + results[0]);
         }
         if (!"/ep/play-1-1".equals(results[1])) {
             throw new AssertionError("Play path parsed incorrectly: " + results[1]);
+        }
+        if (!"台灣".equals(results[2])) {
+            throw new AssertionError("Region parsed incorrectly: " + results[2]);
+        }
+        if (!"2023".equals(results[3])) {
+            throw new AssertionError("Year parsed incorrectly: " + results[3]);
         }
     }
 

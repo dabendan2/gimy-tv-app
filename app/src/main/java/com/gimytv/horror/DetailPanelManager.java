@@ -102,6 +102,8 @@ public class DetailPanelManager {
                 String[] details = GimyParser.parseMovieDetails(detailHtml);
                 final String synopsis = details[0];
                 final String playPath = details[1];
+                final String region = details[2];
+                final String year = details[3];
                 final ArrayList<String> parsedLines = GimyParser.parseAllLines(detailHtml);
 
                 activity.runOnUiThread(new Runnable() {
@@ -109,6 +111,20 @@ public class DetailPanelManager {
                     public void run() {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
+                            
+                            // Dynamically update metadata to include parsed region and year!
+                            StringBuilder sb = new StringBuilder();
+                            sb.append(" 地區/演員：");
+                            if (region != null && !region.isEmpty()) {
+                                sb.append("[").append(region).append("] ");
+                            }
+                            if (year != null && !year.isEmpty()) {
+                                sb.append("[").append(year).append("年] ");
+                            }
+                            sb.append(selectedMovieSubtitle.isEmpty() ? "未知" : selectedMovieSubtitle);
+                            sb.append("\n 狀態：").append(note);
+                            tvDetailMeta.setText(sb.toString());
+
                             availableLines.clear();
                             if (parsedLines != null && !parsedLines.isEmpty()) {
                                 availableLines.addAll(parsedLines);

@@ -89,7 +89,7 @@ public class DetailPanelManager {
         }
 
         tvDetailTitle.setText("《" + title + "》");
-        tvDetailMeta.setText(String.format(" 地區/時間：---/---\n 演員：%s", subtitle.isEmpty() ? "未知" : subtitle));
+        tvDetailMeta.setText(String.format("地區/時間：---/---\n演員：%s", subtitle.isEmpty() ? "未知" : subtitle));
         tvDetailSynopsis.setText("正在通靈獲取恐怖故事簡介...");
 
         new Thread(new Runnable() {
@@ -110,7 +110,7 @@ public class DetailPanelManager {
                     public void run() {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
-                            tvDetailMeta.setText(String.format(" 地區/時間：%s/%s\n 演員：%s", 
+                            tvDetailMeta.setText(String.format("地區/時間：%s/%s\n演員：%s", 
                                 region.isEmpty() ? "未知" : region, 
                                 year.isEmpty() ? "未知" : year, 
                                 selectedMovieSubtitle.isEmpty() ? "未知" : selectedMovieSubtitle));

@@ -175,7 +175,7 @@ public class MainActivity extends Activity {
 
         // Detail Meta info (Rating, Actor list)
         tvDetailMeta = new TextView(this);
-        tvDetailMeta.setText("演員：---\n狀態：---");
+        tvDetailMeta.setText("演員：---\n地區/時間：---/---");
         tvDetailMeta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         tvDetailMeta.setTextColor(Color.parseColor("#9AA0A6")); // Subtle gray text
         tvDetailMeta.setPadding(0, 0, 0, 20);

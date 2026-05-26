@@ -4,9 +4,59 @@ import os
 import json
 import subprocess
 import time
+from unittest.mock import patch, MagicMock
 
 # Add scripts directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../scripts")))
+
+# A mock function to intercept subprocess.run
+def mock_subprocess_run(cmd, *args, **kwargs):
+    mock_res = MagicMock(spec=subprocess.CompletedProcess)
+    mock_res.returncode = 0
+    mock_res.stdout = ""
+    mock_res.stderr = ""
+    
+    cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
+    
+    if "devices" in cmd_str:
+        mock_res.stdout = "List of devices attached\n100.87.89.52:5555\tdevice\n"
+    elif "dumpsys window" in cmd_str:
+        mock_res.stdout = "mCurrentFocus=Window{9720352 u0 com.gimytv.horror/com.gimytv.horror.MainActivity}"
+    elif "logcat" in cmd_str:
+        mock_res.stdout = """
+05-26 23:23:37.525 19990 19990 D GimyHorror_Player: MediaSession metadata updated with poster bitmap.
+05-26 23:23:38.283 19990 21459 D GimyHorror_Parser: Parsed play path successfully: /ep/255334-1-1.html
+05-26 23:23:38.288 19990 19990 I GimyHorror_UI: ⚡ AutoPlay triggered directly from Intent!
+05-26 23:23:38.549 19990 21463 I GimyHorror_Parser: Successfully parsed stream M3U8 URL: https://vv.jisuzyv.com/play/Pe9o7PPb/index.m3u8
+05-26 23:23:38.550 19990 19990 I GimyHorror_Player: 🎬 startPlayer requested - Title: 女鬼橋2：怨鬼樓 | Movie ID: 255334 | Resume: true | URL: https://vv.jisuzyv.com/play/Pe9o7PPb/index.m3u8
+05-26 23:23:41.471 19990 19990 I GimyHorror_Player: ✅ Video prepared. Duration: 6078417 ms (01:41:18)
+05-26 23:23:41.471 19990 19990 I GimyHorror_Player: Using pendingSeekMs from MainActivity resolved to: 5778000 ms (01:36:18)
+05-26 23:23:41.471 19990 19990 I GimyHorror_Player: Seeking to final progress: 5778000 ms (01:36:18)
+"""
+    elif "pull" in cmd_str:
+        dest = cmd[5] if len(cmd) > 5 else cmd[4] if len(cmd) > 4 else "/tmp/GimyHorror_Store.json"
+        mock_store = {
+            "list_state_255334": 2,
+            "progress_pos_255334": 6078233,
+            "progress_dur_255334": 6078417
+        }
+        with open(dest, "w", encoding="utf-8") as f:
+            json.dump(mock_store, f)
+    elif "am start" in cmd_str:
+        mock_res.stdout = "Starting: Intent { act=android.intent.action.MAIN ... }"
+    elif "keyevent" in cmd_str:
+        mock_res.stdout = ""
+    
+    return mock_res
+
+# Conditionally apply patch based on GIMY_REAL_DEVICE environment variable
+use_real_device = os.environ.get("GIMY_REAL_DEVICE") == "1"
+patcher = None
+
+if not use_real_device:
+    print("ℹ️ Running in SAFE MOCK MODE (will not affect your TV). Set GIMY_REAL_DEVICE=1 to run on actual TV.")
+    patcher = patch("subprocess.run", side_effect=mock_subprocess_run)
+    patcher.start()
 
 from gimy_mcp_server import gimy_search_movies, gimy_launch_movie, gimy_get_tv_state
 
@@ -18,7 +68,8 @@ def test_closed_loop_advanced():
     # Close any active player first
     print("1. Closing any active player...")
     subprocess.run(["adb", "shell", "input", "keyevent", "KEYCODE_BACK"])
-    time.sleep(1)
+    if use_real_device:
+        time.sleep(1)
 
     # 1. Test Search Movie (Check if Watch Progress and List State are returned!)
     print("\n🔍 Step 1: Testing Search Movie with watch progress & states for '女鬼橋2'...")
@@ -54,8 +105,11 @@ def test_closed_loop_advanced():
         sys.exit(1)
 
     # 3. Wait 8 seconds for video to fetch, buffer, auto-start, and perform seek
-    print("\n⏳ Step 3: Waiting 8 seconds for the video to fetch, buffer, auto-play, and seek...")
-    time.sleep(8)
+    if use_real_device:
+        print("\n⏳ Step 3: Waiting 8 seconds for the video to fetch, buffer, auto-play, and seek...")
+        time.sleep(8)
+    else:
+        print("\n⏳ Step 3: Skipping real-time wait in Safe Mock Mode...")
 
     # 4. Fetch logs and verify direct playback + seek completed successfully
     print("\n📊 Step 4: Verification of Playback and Seek via Logcat...")
@@ -94,3 +148,5 @@ def test_closed_loop_advanced():
 
 if __name__ == "__main__":
     test_closed_loop_advanced()
+    if patcher is not None:
+        patcher.stop()

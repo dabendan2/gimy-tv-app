@@ -2,9 +2,57 @@
 import sys
 import os
 import json
+import subprocess
+from unittest.mock import patch, MagicMock
 
 # Add scripts directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../scripts")))
+
+# A mock function to intercept subprocess.run
+def mock_subprocess_run(cmd, *args, **kwargs):
+    mock_res = MagicMock(spec=subprocess.CompletedProcess)
+    mock_res.returncode = 0
+    mock_res.stdout = ""
+    mock_res.stderr = ""
+    
+    cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
+    
+    if "devices" in cmd_str:
+        mock_res.stdout = "List of devices attached\n100.87.89.52:5555\tdevice\n"
+    elif "dumpsys window" in cmd_str:
+        mock_res.stdout = "mCurrentFocus=Window{ac5eca u0 com.gimytv.horror/com.gimytv.horror.MainActivity}"
+    elif "logcat" in cmd_str:
+        mock_res.stdout = """
+05-26 23:06:46.131 19990 19990 I GimyHorror_Player: ⏹ stopping playback for Movie ID: 255334
+05-26 23:06:46.139 19990 19990 I GimyHorror_UI: 🎯 FocusState: Filter focused -> Sort: 熱門推薦
+05-26 23:16:46.467 19990 19990 I GimyHorror_Player: ⏸ pausePlaybackOnBackground triggered.
+05-26 23:23:30.537 19990 19990 I GimyHorror_UI: 📥 handleIntent received. Movie ID: 256828
+05-26 23:23:30.537 19990 19990 I GimyHorror_UI: 📥 Restoring Watch Next / Deep Link for: 破墓 | autoPlay: true
+"""
+    elif "pull" in cmd_str:
+        dest = cmd[5] if len(cmd) > 5 else cmd[4] if len(cmd) > 4 else "/tmp/GimyHorror_Store.json"
+        mock_store = {
+            "list_state_255334": 2,
+            "progress_pos_255334": 6078233,
+            "progress_dur_255334": 6078417
+        }
+        with open(dest, "w", encoding="utf-8") as f:
+            json.dump(mock_store, f)
+    elif "am start" in cmd_str:
+        mock_res.stdout = "Starting: Intent { act=android.intent.action.MAIN ... }"
+    elif "keyevent" in cmd_str:
+        mock_res.stdout = ""
+    
+    return mock_res
+
+# Conditionally apply patch based on GIMY_REAL_DEVICE environment variable
+use_real_device = os.environ.get("GIMY_REAL_DEVICE") == "1"
+patcher = None
+
+if not use_real_device:
+    print("ℹ️ Running in SAFE MOCK MODE (will not affect your TV). Set GIMY_REAL_DEVICE=1 to run on actual TV.")
+    patcher = patch("subprocess.run", side_effect=mock_subprocess_run)
+    patcher.start()
 
 from gimy_mcp_server import gimy_search_movies, gimy_launch_movie, gimy_playback_control, gimy_get_tv_state
 
@@ -98,3 +146,5 @@ def test_closed_loop():
 
 if __name__ == "__main__":
     test_closed_loop()
+    if patcher is not None:
+        patcher.stop()

@@ -53,6 +53,8 @@ public class MainActivity extends Activity {
     private GimyPlayer gimyPlayer;
     private DetailPanelManager detailPanelManager;
     private GridPanelManager gridPanelManager;
+    public int pendingSeekMs = -1;
+    private boolean isDeepLinkActive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -252,6 +254,11 @@ public class MainActivity extends Activity {
         gridPanelManager = new GridPanelManager(this, gridContainer, movieStore, new GridPanelManager.GridPanelListener() {
             @Override
             public void onMovieCardFocused(Movie movie, View card) {
+                if (isDeepLinkActive) {
+                    Log.i(TAG, "Ignoring autofocus card focus because a deep-link is active: 《" + movie.title + "》 (ID: " + movie.id + ")");
+                    isDeepLinkActive = false;
+                    return;
+                }
                 Log.i(TAG, "🎯 FocusState: Movie Card focused -> 《" + movie.title + "》 (ID: " + movie.id + ")");
                 if (detailPanelManager != null) {
                     detailPanelManager.loadMovieDetails(movie.id, movie.title, movie.imageUrl, movie.note, movie.subtitle);
@@ -628,17 +635,68 @@ public class MainActivity extends Activity {
     }
 
     private void handleIntent(android.content.Intent intent) {
-        if (intent != null && detailPanelManager != null) {
-            String movieId = intent.getStringExtra("movieId");
-            Log.i(TAG, "📥 handleIntent received. Movie ID: " + movieId);
-            if (movieId != null && !movieId.isEmpty()) {
-                String title = intent.getStringExtra("movieTitle");
-                String imageUrl = intent.getStringExtra("imageUrl");
-                String subtitle = intent.getStringExtra("subtitle");
+        if (intent != null) {
+            if (intent.hasExtra("listState") && intent.hasExtra("movieId")) {
+                String movieId = intent.getStringExtra("movieId");
+                int state = -1;
+                try {
+                    String stateStr = intent.getStringExtra("listState");
+                    if (stateStr != null) {
+                        state = Integer.parseInt(stateStr);
+                    } else {
+                        state = intent.getIntExtra("listState", -1);
+                    }
+                } catch (Exception e) {
+                    state = intent.getIntExtra("listState", -1);
+                }
+                Log.i(TAG, "📥 handleIntent: Direct listState request for ID: " + movieId + " to state: " + state);
+                if (movieId != null && !movieId.isEmpty() && state != -1) {
+                    movieStore.setListState(movieId, state);
+                    refreshMovieGrid();
+                }
+            }
+
+            if (intent.hasExtra("seekPositionMs")) {
+                int seekMs = -1;
+                try {
+                    String seekStr = intent.getStringExtra("seekPositionMs");
+                    if (seekStr != null) {
+                        seekMs = Integer.parseInt(seekStr);
+                    } else {
+                        seekMs = intent.getIntExtra("seekPositionMs", -1);
+                    }
+                } catch (Exception e) {
+                    seekMs = intent.getIntExtra("seekPositionMs", -1);
+                }
                 
-                Log.i(TAG, "📥 Restoring Watch Next / Deep Link for: " + title);
-                // Load movie details asynchronously, and auto-focus play
-                detailPanelManager.loadMovieDetails(movieId, title != null ? title : "", imageUrl != null ? imageUrl : "", "", subtitle != null ? subtitle : "", true);
+                Log.i(TAG, "📥 handleIntent: Direct seek request to " + seekMs + " ms");
+                if (seekMs != -1 && gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                    int targetMs = seekMs;
+                    if (seekMs < 0) {
+                        targetMs = gimyPlayer.getVideoView().getDuration() + seekMs;
+                    }
+                    Log.i(TAG, "Direct seek to resolved position: " + targetMs + " ms");
+                    gimyPlayer.getVideoView().seekTo(targetMs);
+                    gimyPlayer.getVideoView().start();
+                } else if (seekMs != -1) {
+                    pendingSeekMs = seekMs;
+                }
+            }
+
+            if (detailPanelManager != null) {
+                String movieId = intent.getStringExtra("movieId");
+                Log.i(TAG, "📥 handleIntent received. Movie ID: " + movieId);
+                if (movieId != null && !movieId.isEmpty()) {
+                    String title = intent.getStringExtra("movieTitle");
+                    String imageUrl = intent.getStringExtra("imageUrl");
+                    String subtitle = intent.getStringExtra("subtitle");
+                    
+                    boolean autoPlay = intent.getBooleanExtra("autoPlay", false) || intent.hasExtra("seekPositionMs");
+                    Log.i(TAG, "📥 Restoring Watch Next / Deep Link for: " + title + " | autoPlay: " + autoPlay);
+                    isDeepLinkActive = true;
+                    // Load movie details asynchronously, and auto-focus play
+                    detailPanelManager.loadMovieDetails(movieId, title != null ? title : "", imageUrl != null ? imageUrl : "", "", subtitle != null ? subtitle : "", !autoPlay, autoPlay);
+                }
             }
         }
     }

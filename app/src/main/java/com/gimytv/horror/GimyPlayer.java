@@ -273,9 +273,24 @@ public class GimyPlayer {
             public void onPrepared(MediaPlayer mp) {
                 Log.i(TAG, "✅ Video prepared. Duration: " + videoView.getDuration() + " ms");
                 tvLoadingIndicator.setVisibility(View.GONE);
-                if (savedPos > 0) {
-                    Log.i(TAG, "Seeking to saved progress: " + savedPos + " ms");
-                    videoView.seekTo(savedPos);
+                
+                int finalSeekPos = savedPos;
+                if (activity instanceof MainActivity) {
+                    int pSeek = ((MainActivity) activity).pendingSeekMs;
+                    if (pSeek != -1) {
+                        if (pSeek < 0) {
+                            finalSeekPos = videoView.getDuration() + pSeek;
+                        } else {
+                            finalSeekPos = pSeek;
+                        }
+                        ((MainActivity) activity).pendingSeekMs = -1; // reset
+                        Log.i(TAG, "Using pendingSeekMs from MainActivity resolved to: " + finalSeekPos + " ms");
+                    }
+                }
+                
+                if (finalSeekPos > 0) {
+                    Log.i(TAG, "Seeking to final progress: " + finalSeekPos + " ms");
+                    videoView.seekTo(finalSeekPos);
                 }
                 videoView.start();
                 if (gimyMediaSession != null) {

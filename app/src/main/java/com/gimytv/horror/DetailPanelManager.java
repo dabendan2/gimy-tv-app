@@ -68,10 +68,14 @@ public class DetailPanelManager {
     }
 
     public void loadMovieDetails(final String id, final String title, final String imageUrl, final String note, final String subtitle) {
-        loadMovieDetails(id, title, imageUrl, note, subtitle, false);
+        loadMovieDetails(id, title, imageUrl, note, subtitle, false, false);
     }
 
     public void loadMovieDetails(final String id, final String title, final String imageUrl, final String note, final String subtitle, final boolean focusPlay) {
+        loadMovieDetails(id, title, imageUrl, note, subtitle, focusPlay, false);
+    }
+
+    public void loadMovieDetails(final String id, final String title, final String imageUrl, final String note, final String subtitle, final boolean focusPlay, final boolean autoPlay) {
         this.selectedMovieId = id;
         this.selectedMovieTitle = title;
         this.selectedMovieImageUrl = imageUrl;
@@ -101,7 +105,13 @@ public class DetailPanelManager {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
                             updatePlayButtons(playPath);
-                            if (focusPlay && btnPlayRef != null && btnPlayRef.isEnabled()) {
+                            if (autoPlay && playPath != null && !playPath.isEmpty()) {
+                                android.util.Log.i("GimyHorror_UI", "⚡ AutoPlay triggered directly from Intent!");
+                                int pos = movieStore.getProgressPos(id);
+                                int dur = movieStore.getProgressDur(id);
+                                boolean hasProgress = (dur > 0 && pos > 0);
+                                listener.onPlayMovieRequested(playPath, hasProgress);
+                            } else if (focusPlay && btnPlayRef != null && btnPlayRef.isEnabled()) {
                                 btnPlayRef.requestFocus();
                             }
                         }

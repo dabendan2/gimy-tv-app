@@ -15,3 +15,9 @@ gimy_screencap.png
 # IDEs
 .idea/
 *.iml
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

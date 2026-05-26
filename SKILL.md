@@ -1,18 +1,24 @@
 ---
 name: gimy-tv-app
-description: Developer and architecture guide for Gimy TV App — CLI build, TDD guard, unified logging, and Cast/MediaSession specifications.
-category: software-development
-tags:
-  - android
-  - java
-  - adb
-  - logging
-  - media-session
+description: Use when developing, deploying, or automating the Gimy TV App. Developer and architecture guide for CLI build, TDD guard, unified logging, and Cast/MediaSession.
+version: 1.1.0
+author: Hermes Agent
+license: MIT
+metadata:
+  hermes:
+    tags: [android, java, adb, logging, media-session, mcp, automation]
+    related_skills: [gimy-tv-automation, native-mcp]
 ---
 
 # Gimy TV App - AI Agent & Developer Guide 📺💀
 
 This document serves as the Single Source of Truth (SSOT) for any AI agent or human developer working on the **Gimy TV App (鬼魅劇場)**. It outlines the project's unique lightweight architecture, build systems, debugging protocols, and Cast/MediaSession specifications.
+
+## 🎯 When to Use
+*   Use when compiling, building, or signing the Gimy TV App APK.
+*   Use when deploying the app onto a connected Google TV or Android TV device over ADB.
+*   Use when controlling, automating, or checking playback state via the Gimy TV MCP server.
+*   **Do not use for**: Generic Android development with Gradle (this project uses a custom lightweight Python-based CLI build pipeline).
 
 ---
 
@@ -79,8 +85,8 @@ To make the app appear beautifully as a Cast notification on mobile phones (allo
 ### 1. Artwork & Poster Display (Absolute HTTP URIs)
 Many mobile notification template renderers and Cast receivers reject local raw `Bitmap` byte arrays over IPC/Binder if they are too large, or if they lack URI identifiers.
 *   **Implementation**: Always pass **both** the scaled Bitmap (resized to `320px` max dimension) and the **fully qualified absolute HTTPS URL** (补全 relative `/upload/` paths to `https://gimyplus.com/upload/`) to the following metadata keys:
-    *   `MediaMetadata.METADATA_KEY_ALBUM_ART` & `METADATA_KEY_ALBUM_ART_URI`
-    *   `MediaMetadata.METADATA_KEY_ART` & `METADATA_KEY_ART_URI`
+    *   `MediaMetadata.METADATA_KEY_ALBUM_ART` & `MediaMetadata.METADATA_KEY_ALBUM_ART_URI`
+    *   `MediaMetadata.METADATA_KEY_ART` & `MediaMetadata.METADATA_KEY_ART_URI`
     *   `MediaMetadata.METADATA_KEY_DISPLAY_ICON` & `MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI`
 
 ### 2. Lockscreen & Template Compatibility Keys
@@ -97,6 +103,43 @@ Instead of bloated custom `VolumeProvider` hacks that capture volume keys manual
 ---
 
 ## ⚠️ Known Pitfalls & Dev Guidelines
+1.  **D-Pad Navigation Traps & Focus Theft**: 
+   *   **Focus Theft on Recreation**: When recreating or populating a list/grid programmatically (e.g., after filter changes), check if the user is currently interacting with an upstream filter row. Query `((Activity) context).getCurrentFocus()` and verify if the focused view's parent's parent is a `HorizontalScrollView` (filter tag). If so, **do not** call `requestFocus()` on the grid items, preserving the user's active cursor location.
+   *   **Strict Vertical Confinement**: To prevent Android TV's Focus Finder from leaking focus horizontally to adjacent panels (e.g., jumping from details buttons to movie grid cards on UP/DOWN), always intercept and handle DPAD_UP/DPAD_DOWN keys on bottom-most focusable buttons:
+       *   **DPAD_DOWN**: Consume the key event (return `true`) to lock focus at the bottom.
+       *   **DPAD_UP**: Manually request focus back on the parent container (`rightScrollView.requestFocus()`), perform a smooth scroll-up (e.g., `rightScrollView.smoothScrollBy(0, -100)`) so the elements transition out of frame fluidly, and return `true`.
+   *   **Deep Link Overwrite Race Condition**: When cold-starting the app via a deep link, the details panel load competes with the asynchronous network movie grid load. When the grid finishes, Leanback auto-focuses the first grid item, which fires its `onFocusChange` and overwrites the deep-linked movie. Fix this by setting an `isDeepLinkActive = true` flag on deep link receipt, checking it in `onMovieCardFocused`, ignoring the initial autofocus load when true, and resetting it to false to allow subsequent manual navigation.
+2.  **Dynamic 2D Asset Centering (Pillow/PIL)**:
+   *   **The Ink Bounding Box Pitfall**: CJK and heavy display fonts have large internal ascender/layout padding (e.g., up to 90px empty vertical space for size 220), which shifts drawn letters significantly lower than the specified `y` coordinate.
+   *   **Absolute 2D Centering**: Do not use hardcoded or simple layout bounding boxes. Use `draw.textbbox` to calculate the actual raw vertical and horizontal bounds of the *ink/pixels* of all characters across rows and columns. Dynamically solve coordinates so that:
+       $$\text{Left Padding} = \text{Right Padding} \quad \text{and} \quad \text{Top Padding} = \text{Bottom Padding}$$
+   *   **Breathing Room**: For multi-row grid icons (like a 2x2 split brand text), define a vertical breathing gap between rows of `12%` to `15%` of the font size (e.g., `gap_y = int(font_size * 0.15)`) to ensure the rows do not touch or feel cramped.
+   *   **Formulas Reference**: See `[references/launcher-icon-centering-formula.md](references/launcher-icon-centering-formula.md)` for the complete dynamic 2D centering and column alignment mathematical equations.
+3.  **Synchronous Filter UI Redrawing**:
+   *   When an item is clicked in a horizontal selection row, always iterate through all sibling views of the row container (`optionsLayout.getChildAt(i)`) and dynamically invoke the state-styling helper (e.g., `updateFilterItemStyle`) on each. This guarantees previous selections instantly clear and only the active tag remains highlighted.
+4.  **Agent-Native Observability (Focus Logging)**:
+   *   To make the app 100% visible to AI agents and automated testing frameworks without relying on heavy screencap captures, integrate precise focus state logging in all `OnFocusChangeListener` blocks. Log entries as info (`Log.i("GimyHorror_UI", "🎯 FocusState: ...")`) with specific details of the focused element (e.g., card title/ID, button name, filter type/value).
+5.  **M3U8 Parse Failures**: Gimyplus occasionally obfuscates `player_data` JSON under different script tags. If streaming fails, inspect `GimyParser.parseM3U8Url()` immediately for pattern mismatches.
+6. Google TV Continue Watching Integration: 
+    - The compilation SDK has been raised from **API 23 to API 26 (Android 8.0)** to support direct system imports of `android.media.tv.TvContract`. 
+    - See `[references/google-tv-continue-watching-integration.md](references/google-tv-continue-watching-integration.md)` for the complete design, code templates, and background threading protocols.
+7. Agent-Native MCP Integration & Direct Seek/Play:
+    - This app features an Agent-Native design allowing headless, non-root AI agents to fully control and observe playback.
+    - To prevent Leanback autofocus from overwriting deep-linked movies on startup, use the `isDeepLinkActive` flag workaround.
+    - To read real-time watchlist and playback progresses without root, use the external JSON database export pattern.
+    - Wrap all adb shell string extras in single quotes to prevent Android shell argument splitting when arguments contain spaces.
+    - See `[references/agent-native-mcp-integration.md](references/agent-native-mcp-integration.md)` for complete architectural details, quoting rules, and Java code templates.
+7.  **Agent-Native MCP Server Specification**:
+    - The app supports a dedicated Model Context Protocol (MCP) server for hands-free automation.
+    - All time parameters and return values are unified on a **Seconds** scale to prevent mathematical and type errors during agent invocation.
+    - Enables high-performance search with **detailed synopses**, direct ADB deep-link launches, and zero-latency playback scrubbing.
+    - See `[references/agent-native-mcp-server-and-testing.md](references/agent-native-mcp-server-and-testing.md)` for tool schemas, self-healing intent delivery, and closed-loop testing.
 
-1.  **D-Pad Navigation Traps**: All interactive layout panels built programmatically (like `DetailPanelManager`) must define focus styling change listeners and preserve focus targets (e.g. `tvDetailSynopsis.setFocusable(true)`).
-2.  **M3U8 Parse Failures**: Gimyplus occasionally obfuscates `player_data` JSON under different script tags. If streaming fails, inspect `GimyParser.parseM3U8Url()` immediately for pattern mismatches.
+## 🎯 Verification Checklist
+- [ ] **Unit Tests**: Run `python3 scripts/build_apk.py` and ensure the JVM unit tests pass successfully before packaging.
+- [ ] **ADB Connectivity**: Ensure `adb devices` lists `100.87.89.52:5555` as connected.
+- [ ] **AutoPlay & Seek**: Test launching a deep link with `--ez autoPlay true -e seekPositionMs "5778000"` and verify direct, hands-free video start.
+- [ ] **JSON State Export**: Check that `/sdcard/Android/data/com.gimytv.horror/files/GimyHorror_Store.json` exists and is populated.
+- [ ] **MCP Conformity**: Run `python3 tests/test_gimy_mcp_advanced.py` and verify all integration tools return `success: true`.
+
+---

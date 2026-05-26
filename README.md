@@ -27,8 +27,9 @@
 
 ```directory
 gimy-tv-app/
-├── .gitignore              # 過濾二進位編譯產物與臨時截圖
+├── .gitignore              # 過濾二進位編編譯產物與臨時截圖
 ├── README.md               # 專案說明書
+├── SKILL.md                # [SSOT] 內置技能定義主檔案
 ├── my-release-key.jks      # 電視端專屬簽章金鑰 (Keystore)
 ├── bin/
 │   └── signed.apk          # 最終打包編譯好、可直接安裝至電視的 APK 快捷路徑
@@ -49,9 +50,13 @@ gimy-tv-app/
 │       └── test/java/com/gimytv/horror/
 │           ├── GimyParserTest.java  # 解析模組單元測試
 │           └── TestRunner.java      # 輕量級自動化測試執行器 (TDD 核心)
-└── scripts/
-    ├── make_assets.py      # 一鍵繪製/更新電視端 App 圖示與橫幅
-    └── build_apk.py        # 一鍵執行單元測試、編譯 Java、轉換 Dex、打包、對齊、簽章與發行
+├── scripts/
+│   ├── make_assets.py      # 一鍵繪製/更新電視端 App 圖示與橫幅
+│   ├── build_apk.py        # 一鍵執行單元測試、編譯 Java、轉換 Dex、打包、對齊、簽章與發行
+│   └── gimy_mcp_server.py  # Agent-Native MCP 伺服器 (秒級降維控制核心)
+└── tests/
+    ├── test_gimy_mcp.py    # 標準 MCP 閉環自動化測試
+    └── test_gimy_mcp_advanced.py  # 進階一鍵秒播、時間跳轉、我的最愛更新測試
 ```
 
 ---
@@ -95,6 +100,37 @@ adb install -r bin/signed.apk
 # 3. 強制啟動電視端 Gimy TV App
 adb shell am start -n com.gimytv.horror/.MainActivity
 ```
+
+---
+
+## 🤖 AI 代理原生與 MCP 整合 (AI Agent & MCP Integration)
+
+本專案深度整合了 **Model Context Protocol (MCP)**，專為 AI 代理人打造了強大的遠端語意化控制。
+
+### 1. 電視端進度與狀態自動導出
+每當影片播放進度存檔、或清單狀態（待播 `📝`、喜歡 `❤️`、不喜歡 `💩`）發生更新時，`MovieStore` 會自動將其導出為標準 JSON，存於外部檔案系統中：
+`儲存路徑：/sdcard/Android/data/com.gimytv.horror/files/GimyHorror_Store.json`
+
+此檔案對 ADB 具備完全讀取權限，使 MCP 伺服器能無痛拉取、並結構化展示使用者的所有觀影狀態。
+
+### 2. 深層連結起播與快進指令 (Deep-Link AutoPlay & Seek)
+本 App 提供高階意圖參數，可於單一 intent 內完成啟動、自動播放與快進：
+```bash
+adb shell am start -n com.gimytv.horror/.MainActivity \
+  -e movieId "255334" \
+  -e movieTitle "女鬼橋2：怨鬼樓" \
+  --ez autoPlay true \
+  -e seekPositionMs "5778000"
+```
+*   `autoPlay` (Boolean Extra): 為 `true` 時，詳情頁載入後將自動開始放映，完全省略手動遙控點擊。
+*   `seekPositionMs` (String Extra): 指定起播跳轉位置（單位毫秒）。**支援負毫秒數**（例如：`-300000` 表示倒數 5 分鐘），使 App 在冷啟動、視流準備就緒時，動態自癒跳轉至相對時間。
+
+### 3. MCP 伺服器工具鏈 (`gimy_mcp_server.py`)
+專案附帶了基於 FastMCP 的標準 MCP 伺服器，所有輸入與回傳值均優化為 **秒 (Seconds)** 尺度，以避免代理算術偏誤：
+*   `gimy_search_movies(query)`: 搜尋影片，同步合併導出資料，回傳帶有觀影進度（百分比/時分秒）、狀態符號與詳細簡介的 JSON。
+*   `gimy_launch_movie(movieId, seekPosition, autoPlay)`: 一鍵直達投射放映，`seekPosition` 支援極度口語的 `"last 5m"`、`"倒數5分鐘"` 或 `"01:30:00"`，並自動在 Python 端將其安全轉譯。
+*   `gimy_playback_control(action)`: 語意化遙控控制，提供 `PLAY`, `PAUSE`, `SEEK_FORWARD` (D-pad 右 ➔ 中確認), `SEEK_BACKWARD`, `VOLUME_UP/DOWN`。
+*   `gimy_get_tv_state()`: 當前電視活動焦點與 logcat 行為觀測。
 
 ---
 

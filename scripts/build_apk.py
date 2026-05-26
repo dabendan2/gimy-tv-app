@@ -25,7 +25,7 @@ java_files = (
 )
 subprocess.run([
     "javac", "-target", "1.8", "-source", "1.8",
-    "-bootclasspath", "/usr/lib/android-sdk/platforms/android-23/android.jar",
+    "-bootclasspath", "/usr/lib/android-sdk/platforms/android-31/android.jar",
     "-d", "app/build/obj"
 ] + java_files, check=True)
 
@@ -47,7 +47,7 @@ subprocess.run([
     "aapt", "package", "-f", "-m",
     "-M", "app/src/main/AndroidManifest.xml",
     "-S", "app/src/main/res",
-    "-I", "/usr/lib/android-sdk/platforms/android-23/android.jar",
+    "-I", "/usr/lib/android-sdk/platforms/android-31/android.jar",
     "-F", "app/build/bin/resources.ap_"
 ], check=True)
 

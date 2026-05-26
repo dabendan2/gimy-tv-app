@@ -11,8 +11,12 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.util.ArrayList;
 
 public class DetailPanelManager {
+
+    private final ArrayList<String> availableLines = new ArrayList<>();
+    private int currentLineIndex = 0;
 
     public interface DetailPanelListener {
         void onPlayMovieRequested(String playPath, boolean resume);
@@ -98,19 +102,32 @@ public class DetailPanelManager {
                 String[] details = GimyParser.parseMovieDetails(detailHtml);
                 final String synopsis = details[0];
                 final String playPath = details[1];
+                final ArrayList<String> parsedLines = GimyParser.parseAllLines(detailHtml);
 
                 activity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
-                            updatePlayButtons(playPath);
-                            if (autoPlay && playPath != null && !playPath.isEmpty()) {
+                            availableLines.clear();
+                            if (parsedLines != null && !parsedLines.isEmpty()) {
+                                availableLines.addAll(parsedLines);
+                            }
+                            currentLineIndex = movieStore.getSelectedLine(id);
+                            if (playPath != null && !playPath.isEmpty() && !availableLines.contains(playPath)) {
+                                availableLines.add(0, playPath);
+                            }
+                            if (currentLineIndex < 0 || currentLineIndex >= availableLines.size()) {
+                                currentLineIndex = 0;
+                            }
+                            String activePath = availableLines.isEmpty() ? "" : availableLines.get(currentLineIndex);
+                            updatePlayButtons(activePath);
+                            if (autoPlay && activePath != null && !activePath.isEmpty()) {
                                 android.util.Log.i("GimyHorror_UI", "⚡ AutoPlay triggered directly from Intent!");
                                 int pos = movieStore.getProgressPos(id);
                                 int dur = movieStore.getProgressDur(id);
                                 boolean hasProgress = (dur > 0 && pos > 0);
-                                listener.onPlayMovieRequested(playPath, hasProgress);
+                                listener.onPlayMovieRequested(activePath, hasProgress);
                             } else if (focusPlay && btnPlayRef != null && btnPlayRef.isEnabled()) {
                                 btnPlayRef.requestFocus();
                             }
@@ -122,10 +139,14 @@ public class DetailPanelManager {
     }
 
     public void updatePlayButtons(final String playPath) {
-        updatePlayButtons(playPath, false);
+        updatePlayButtons(playPath, 0);
     }
 
     public void updatePlayButtons(final String playPath, final boolean focusListButton) {
+        updatePlayButtons(playPath, focusListButton ? 1 : 0);
+    }
+
+    public void updatePlayButtons(final String playPath, final int focusButtonIndex) {
         playButtonLayout.removeAllViews();
         int size = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 48, activity.getResources().getDisplayMetrics());
 
@@ -341,13 +362,84 @@ public class DetailPanelManager {
 
         playButtonLayout.addView(btnListState);
 
-        if (focusListButton) {
+        if (focusButtonIndex == 1) {
             btnListState.post(new Runnable() {
                 @Override
                 public void run() {
                     btnListState.requestFocus();
                 }
             });
+        }
+
+        // Source Selection Button (if availableLines.size() > 1)
+        if (availableLines.size() > 1) {
+            final Button btnSourceSelect = new Button(activity);
+            btnSourceSelect.setText("線 " + (currentLineIndex + 1));
+            btnSourceSelect.setTextSize(14);
+            btnSourceSelect.setTextColor(Color.WHITE);
+            btnSourceSelect.setFocusable(true);
+            btnSourceSelect.setBackgroundColor(Color.parseColor("#3C4043"));
+            btnSourceSelect.setPadding(0, 0, 0, 0);
+
+            LinearLayout.LayoutParams lpSource = new LinearLayout.LayoutParams(size, size);
+            lpSource.setMargins(0, 0, 20, 0);
+            btnSourceSelect.setLayoutParams(lpSource);
+
+            btnSourceSelect.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
+                        Log.i("GimyHorror_UI", "🎯 FocusState: Source Button focused");
+                        v.setBackgroundColor(Color.parseColor("#8AB4F8")); // Light blue highlight
+                        v.setScaleX(1.08f); v.setScaleY(1.08f);
+                    } else {
+                        v.setBackgroundColor(Color.parseColor("#3C4043"));
+                        v.setScaleX(1.0f); v.setScaleY(1.0f);
+                    }
+                }
+            });
+
+            btnSourceSelect.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    currentLineIndex = (currentLineIndex + 1) % availableLines.size();
+                    movieStore.setSelectedLine(selectedMovieId, currentLineIndex);
+                    String nextPath = availableLines.get(currentLineIndex);
+                    if (btnPlayRef != null) {
+                        btnPlayRef.setTag(nextPath);
+                    }
+                    updatePlayButtons(nextPath, 2); // Re-render and focus back to this source button!
+                }
+            });
+
+            btnSourceSelect.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            if (rightScrollView != null) {
+                                rightScrollView.requestFocus();
+                                rightScrollView.smoothScrollBy(0, -100);
+                                return true;
+                            }
+                        } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                            return true; // Lock at the bottom
+                        }
+                    }
+                    return false;
+                }
+            });
+
+            playButtonLayout.addView(btnSourceSelect);
+
+            if (focusButtonIndex == 2) {
+                btnSourceSelect.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        btnSourceSelect.requestFocus();
+                    }
+                });
+            }
         }
     }
 

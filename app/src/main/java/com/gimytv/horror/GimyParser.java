@@ -170,4 +170,17 @@ public class GimyParser {
         }
         return m3u8Url;
     }
+
+    public static ArrayList<String> parseAllLines(String detailHtml) {
+        ArrayList<String> lines = new ArrayList<>();
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("href=\"(/ep/\\d+-\\d+-1\\.html)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(detailHtml);
+        while (matcher.find()) {
+            String path = matcher.group(1);
+            if (!lines.contains(path)) {
+                lines.add(path);
+            }
+        }
+        return lines;
+    }
 }

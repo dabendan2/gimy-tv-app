@@ -25,6 +25,17 @@ public class MovieStore {
         exportStoreToExternal();
     }
 
+    public int getSelectedLine(String movieId) {
+        if (movieId == null || movieId.isEmpty()) return 0;
+        return prefs.getInt("selected_line_" + movieId, 0);
+    }
+
+    public void setSelectedLine(String movieId, int lineIndex) {
+        if (movieId == null || movieId.isEmpty()) return;
+        prefs.edit().putInt("selected_line_" + movieId, lineIndex).apply();
+        exportStoreToExternal();
+    }
+
     public int getProgressPos(String movieId) {
         if (movieId == null || movieId.isEmpty()) return 0;
         return prefs.getInt("progress_pos_" + movieId, 0);
@@ -61,7 +72,7 @@ public class MovieStore {
             for (java.util.Map.Entry<String, ?> entry : all.entrySet()) {
                 String key = entry.getKey();
                 Object val = entry.getValue();
-                if (key.startsWith("progress_pos_") || key.startsWith("progress_dur_") || key.startsWith("list_state_")) {
+                if (key.startsWith("progress_pos_") || key.startsWith("progress_dur_") || key.startsWith("list_state_") || key.startsWith("selected_line_")) {
                     if (!first) {
                         sb.append(",\n");
                     }

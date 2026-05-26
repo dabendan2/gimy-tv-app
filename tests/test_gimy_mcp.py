@@ -45,14 +45,11 @@ def mock_subprocess_run(cmd, *args, **kwargs):
     
     return mock_res
 
-# Conditionally apply patch based on GIMY_REAL_DEVICE environment variable
-use_real_device = os.environ.get("GIMY_REAL_DEVICE") == "1"
-patcher = None
-
-if not use_real_device:
-    print("ℹ️ Running in SAFE MOCK MODE (will not affect your TV). Set GIMY_REAL_DEVICE=1 to run on actual TV.")
-    patcher = patch("subprocess.run", side_effect=mock_subprocess_run)
-    patcher.start()
+# Always run mock tests
+use_real_device = False
+print("ℹ️ Running in SAFE MOCK MODE (always enabled for automated testing).")
+patcher = patch("subprocess.run", side_effect=mock_subprocess_run)
+patcher.start()
 
 from gimy_mcp_server import gimy_search_movies, gimy_launch_movie, gimy_playback_control, gimy_get_tv_state
 

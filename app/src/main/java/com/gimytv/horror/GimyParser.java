@@ -239,7 +239,14 @@ public class GimyParser {
                 start += 7;
                 int end = detailHtml.indexOf("</li>", start);
                 if (end != -1) {
-                    year = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                    String rawYear = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                    java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\b(20\\d{2}|19\\d{2})\\b");
+                    java.util.regex.Matcher m = p.matcher(rawYear);
+                    if (m.find()) {
+                        year = m.group(1);
+                    } else {
+                        year = rawYear;
+                    }
                 }
             }
         }

@@ -19,6 +19,9 @@ import android.widget.TextView;
 import android.media.session.PlaybackState;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import android.net.http.HttpResponseCache;
+import java.io.File;
+import java.io.IOException;
 
 public class MainActivity extends Activity {
     private static final String TAG = "GimyHorror_UI";
@@ -55,6 +58,17 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "🚀 onCreate: Initializing Gimy TV App.");
+
+        // Enable HTTP response caching (50MB) to optimize network resources
+        try {
+            File httpCacheDir = new File(getCacheDir(), "http");
+            long httpCacheSize = 50 * 1024 * 1024; // 50 MiB
+            HttpResponseCache.install(httpCacheDir, httpCacheSize);
+            Log.i(TAG, "Installed HTTP Response Cache: " + httpCacheDir.getAbsolutePath() + " (50MB)");
+        } catch (IOException e) {
+            Log.e(TAG, "HTTP response cache installation failed", e);
+        }
+
         movieStore = new MovieStore(this);
 
         // Root container (holds main layout and full-screen video overlay)
@@ -538,6 +552,11 @@ public class MainActivity extends Activity {
         if (gimyMediaSession != null) {
             gimyMediaSession.release();
             gimyMediaSession = null;
+        }
+        // Flush Http Response Cache to persist cached network requests
+        HttpResponseCache cache = HttpResponseCache.getInstalled();
+        if (cache != null) {
+            cache.flush();
         }
     }
 

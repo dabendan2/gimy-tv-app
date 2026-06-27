@@ -20,11 +20,26 @@ import android.media.session.PlaybackState;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import android.net.http.HttpResponseCache;
+import android.content.SharedPreferences;
 import java.io.File;
 import java.io.IOException;
 
 public class MainActivity extends Activity {
     private static final String TAG = "GimyHorror_UI";
+
+    private SharedPreferences.OnSharedPreferenceChangeListener prefsListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+        @Override
+        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            if (key != null && key.startsWith("list_state_")) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        refreshMovieGrid();
+                    }
+                });
+            }
+        }
+    };
 
     // Encapsulated Components
     private FilterBarManager filterBarManager;
@@ -53,6 +68,7 @@ public class MainActivity extends Activity {
     private boolean isDeepLinkActive = false;
     private String searchQuery = null;
     private TextView tvSearchKeyword;
+    private volatile String currentLoadingPlayPath = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +86,7 @@ public class MainActivity extends Activity {
         }
 
         movieStore = new MovieStore(this);
+        getSharedPreferences("GimyHorror", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(prefsListener);
 
         // Root container (holds main layout and full-screen video overlay)
         FrameLayout rootContainer = new FrameLayout(this);
@@ -337,6 +354,8 @@ public class MainActivity extends Activity {
         gimyPlayer = new GimyPlayer(this, rootContainer, movieStore, new GimyPlayer.PlayerListener() {
             @Override
             public void onPlaybackStopped() {
+                Log.i(TAG, "⏹ Player stopped callback. Restoring main browse UI. Active playback verification: isPlaying=" + (gimyPlayer != null && gimyPlayer.getVideoView() != null && gimyPlayer.getVideoView().isPlaying()));
+                currentLoadingPlayPath = null;
                 mainSplitLayout.setVisibility(View.VISIBLE);
                 if (detailPanelManager.getPlayButton() != null && detailPanelManager.getPlayButton().getTag() != null) {
                     detailPanelManager.updatePlayButtons((String) detailPanelManager.getPlayButton().getTag());
@@ -363,6 +382,7 @@ public class MainActivity extends Activity {
         String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
         String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
         Log.i(TAG, "🔍 refreshMovieGrid requested: Sort=" + sort + " | Region=" + region + " | Year=" + year + " | SearchQuery=" + searchQuery);
+        currentLoadingPlayPath = null;
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("陰間頻道連接中，請稍候...");
@@ -376,18 +396,21 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    String queryUrl;
-                    if (searchQuery != null && !searchQuery.isEmpty()) {
-                        queryUrl = "https://gimyplus.com/search/----------1---.html?wd=" + java.net.URLEncoder.encode(searchQuery, "UTF-8");
+                    final ArrayList<Movie> parsedMovies;
+                    if ("我的待播".equals(sort) && (searchQuery == null || searchQuery.isEmpty())) {
+                        Log.i(TAG, "Loading local watchlist movies from MovieStore...");
+                        parsedMovies = movieStore.getWatchlistMovies();
                     } else {
-                        String sort = filterBarManager != null ? filterBarManager.getSelectedSort() : "熱門推薦";
-                        String region = filterBarManager != null ? filterBarManager.getSelectedRegion() : "全部";
-                        String year = filterBarManager != null ? filterBarManager.getSelectedYear() : "全部";
-                        queryUrl = GimyParser.constructCategoryUrl(sort, region, year);
+                        String queryUrl;
+                        if (searchQuery != null && !searchQuery.isEmpty()) {
+                            queryUrl = "https://gimyplus.com/search/----------1---.html?wd=" + java.net.URLEncoder.encode(searchQuery, "UTF-8");
+                        } else {
+                            queryUrl = GimyParser.constructCategoryUrl(sort, region, year);
+                        }
+                        Log.d(TAG, "Constructed query URL: " + queryUrl);
+                        String html = GimyParser.fetchHtml(queryUrl);
+                        parsedMovies = GimyParser.parseMoviesFromHtml(html);
                     }
-                    Log.d(TAG, "Constructed query URL: " + queryUrl);
-                    String html = GimyParser.fetchHtml(queryUrl);
-                    final ArrayList<Movie> parsedMovies = GimyParser.parseMoviesFromHtml(html);
 
                     runOnUiThread(new Runnable() {
                         @Override
@@ -405,6 +428,7 @@ public class MainActivity extends Activity {
 
     private void playMovie(final String playPath, final boolean resume) {
         Log.i(TAG, "🎬 playMovie requested: path=" + playPath + " | resume=" + resume);
+        currentLoadingPlayPath = playPath;
         gridContainer.removeAllViews();
         TextView loading = new TextView(this);
         loading.setText("正在分析驚悚影片流，請稍候...");
@@ -426,6 +450,10 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            if (playPath != null && !playPath.equals(currentLoadingPlayPath)) {
+                                Log.w(TAG, "Discarding outdated playMovie result for path: " + playPath);
+                                return;
+                            }
                             if (m3u8Url.isEmpty()) {
                                 Log.e(TAG, "parseM3U8Url returned empty for path: " + playPath);
                                 tvDetailSynopsis.setText("通靈影片流失敗，該線路或已被陰間屏蔽！");
@@ -459,11 +487,8 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if (gimyPlayer != null && gimyPlayer.isPlayerActive() && !gimyPlayer.getVideoView().isPlaying()) {
-                                gimyPlayer.getVideoView().start();
-                                gimyPlayer.setPlayerTitleVisible(false);
-                                gimyPlayer.showPlaybackIndicator("▶");
-                                if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PLAYING);
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                                gimyPlayer.resumePlayback();
                             }
                         }
                     });
@@ -474,11 +499,8 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if (gimyPlayer != null && gimyPlayer.isPlayerActive() && gimyPlayer.getVideoView().isPlaying()) {
-                                gimyPlayer.getVideoView().pause();
-                                gimyPlayer.setPlayerTitleVisible(true);
-                                gimyPlayer.showPlaybackIndicator("❚❚");
-                                if (gimyMediaSession != null) gimyMediaSession.updatePlaybackState(PlaybackState.STATE_PAUSED);
+                            if (gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                                gimyPlayer.pausePlayback();
                             }
                         }
                     });
@@ -502,7 +524,7 @@ public class MainActivity extends Activity {
                         @Override
                         public void run() {
                             if (gimyPlayer != null && gimyPlayer.isPlayerActive()) {
-                                gimyPlayer.getVideoView().seekTo((int) pos);
+                                gimyPlayer.seekTo((int) pos);
                                 if (gimyMediaSession != null) {
                                     gimyMediaSession.updatePlaybackState(gimyPlayer.getVideoView().isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED);
                                 }
@@ -549,6 +571,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        getSharedPreferences("GimyHorror", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(prefsListener);
         if (gimyMediaSession != null) {
             gimyMediaSession.release();
             gimyMediaSession = null;
@@ -569,6 +592,18 @@ public class MainActivity extends Activity {
 
     private void handleIntent(android.content.Intent intent) {
         if (intent != null) {
+            // Cancel any pending, running background play request thread
+            currentLoadingPlayPath = null;
+
+            // Stop active player if we are transitioning to a search or a different/new movie detail screen,
+            // but NOT if we are performing a seek on the active playback or updating a movie list state.
+            if ((intent.hasExtra("searchQuery") || (intent.hasExtra("movieId") && !intent.hasExtra("listState"))) 
+                    && !intent.hasExtra("seekPositionMs") 
+                    && gimyPlayer != null && gimyPlayer.isPlayerActive()) {
+                Log.i(TAG, "Stopping active player to reveal browse grid or details panel.");
+                gimyPlayer.stopPlayer();
+            }
+
             if (intent.hasExtra("searchQuery")) {
                 searchQuery = intent.getStringExtra("searchQuery");
                 Log.i(TAG, "📥 handleIntent: searchQuery request -> " + searchQuery);
@@ -622,8 +657,9 @@ public class MainActivity extends Activity {
                         targetMs = gimyPlayer.getVideoView().getDuration() + seekMs;
                     }
                     Log.i(TAG, "Direct seek to resolved position: " + targetMs + " ms");
-                    gimyPlayer.getVideoView().seekTo(targetMs);
+                    gimyPlayer.seekTo(targetMs);
                     gimyPlayer.getVideoView().start();
+                    gimyPlayer.savePlaybackProgress(targetMs); // SAVE PROGRESS IMMEDIATELY ON EXTERNAL SEEK!
                 } else if (seekMs != -1) {
                     pendingSeekMs = seekMs;
                 }
@@ -632,7 +668,7 @@ public class MainActivity extends Activity {
             if (detailPanelManager != null) {
                 String movieId = intent.getStringExtra("movieId");
                 Log.i(TAG, "📥 handleIntent received. Movie ID: " + movieId);
-                if (movieId != null && !movieId.isEmpty()) {
+                if (movieId != null && !movieId.isEmpty() && !intent.hasExtra("listState")) {
                     String title = intent.getStringExtra("movieTitle");
                     String imageUrl = intent.getStringExtra("imageUrl");
                     String subtitle = intent.getStringExtra("subtitle");

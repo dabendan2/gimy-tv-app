@@ -151,33 +151,43 @@ def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp
         with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8')
             
-            blocks = html.split('<div class="col-md-3 col-sm-4 col-xs-3 news-box-txt-l clearfix">')
+            blocks = html.split('<article class="search-item">')
             for b in blocks[1:limit+1]:
                 href_match = re.search(r'href="/vod/(\d+)\.html"', b)
-                title_match = re.search(r'title="([^"]+)"', b)
+                movie_id = href_match.group(1) if href_match else ""
                 
-                img_match = re.search(r'data-original="([^"]+)"', b)
+                title_match = re.search(r'class="search-item__title">.*?<a[^>]*>(.*?)</a>', b, re.DOTALL)
+                if not title_match:
+                    title_match = re.search(r'aria-label="([^"]+)"', b)
+                title = title_match.group(1).strip() if title_match else ""
+                
+                img_match = re.search(r'<img[^>]+src="([^"]+)"', b)
                 if not img_match:
-                    img_match = re.search(r"url\('([^']+)'\)", b)
+                    img_match = re.search(r'data-original="([^"]+)"', b)
+                img_url = img_match.group(1).strip() if img_match else ""
                 
-                status_match = re.search(r'<span>狀態：</span>\s*(.*?)\s*</li>', b)
-                if not status_match:
-                    status_match = re.search(r'class="note[^>]*">\s*(.*?)\s*</span>', b)
+                status = "HD"
+                meta_match = re.search(r'class="search-item__meta">\s*(.*?)\s*</p>', b, re.DOTALL)
+                if meta_match:
+                    meta_text = re.sub(r'<[^>]*>', '', meta_match.group(1)).strip()
+                    parts = [p.strip() for p in meta_text.split("·") if p.strip()]
+                    if parts:
+                        status = parts[-1]
                 
                 actors = ""
-                actors_match = re.search(r'主演：</span>(.*?)</li>', b, re.DOTALL)
+                actors_match = re.search(r'class="search-item__meta">\s*主演:\s*(.*?)\s*</p>', b, re.DOTALL)
+                if not actors_match:
+                    actors_match = re.search(r'主演[:：](.*?)(?:</p>|$)', b, re.DOTALL)
                 if actors_match:
                     actors = re.sub(r'<[^>]*>', '', actors_match.group(1)).replace("&nbsp;", " ").strip()
                 
-                syn_match = re.search(r'<span class="details-content-default">(.*?)</span>', b, re.DOTALL)
+                syn_match = re.search(r'class="search-item__desc">\s*(.*?)\s*</p>', b, re.DOTALL)
                 syn = syn_match.group(1).strip() if syn_match else "暫無簡介"
-                syn = re.sub(r'<[^>]*>', '', syn).replace("&nbsp;", " ")
-                
-                movie_id = href_match.group(1) if href_match else ""
+                syn = re.sub(r'<[^>]*>', '', syn).replace("&nbsp;", " ").strip()
                 
                 # Check list states
                 list_state_key = f"list_state_{movie_id}"
-                list_state_val = store.get(list_state_key, 0)
+                list_state_val = int(store.get(list_state_key, 0) or 0)
                 list_state_label = ""
                 if list_state_val == 1:
                     list_state_label = "Watch List (待播) 📝"
@@ -191,19 +201,22 @@ def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp
                 dur_key = f"progress_dur_{movie_id}"
                 progress_label = "未觀看"
                 if pos_key in store and dur_key in store:
-                    pos_ms = store[pos_key]
-                    dur_ms = store[dur_key]
-                    if dur_ms > 0:
-                        pos_sec = pos_ms // 1000
-                        dur_sec = dur_ms // 1000
-                        pct = (pos_ms / dur_ms) * 100
-                        progress_label = f"已觀看 {pct:.1f}% ({format_seconds_to_time(pos_sec)} / {format_seconds_to_time(dur_sec)})"
+                    try:
+                        pos_ms = int(store[pos_key])
+                        dur_ms = int(store[dur_key])
+                        if dur_ms > 0:
+                            pos_sec = pos_ms // 1000
+                            dur_sec = dur_ms // 1000
+                            pct = (pos_ms / dur_ms) * 100
+                            progress_label = f"已觀看 {pct:.1f}% ({format_seconds_to_time(pos_sec)} / {format_seconds_to_time(dur_sec)})"
+                    except (ValueError, TypeError):
+                        pass
                 
                 results.append({
                     "movieId": movie_id,
-                    "movieTitle": title_match.group(1) if title_match else "",
-                    "imageUrl": img_match.group(1) if img_match else "",
-                    "status": status_match.group(1).strip() if status_match else "HD",
+                    "movieTitle": title,
+                    "imageUrl": img_url,
+                    "status": status,
                     "subtitle": actors,
                     "synopsis": syn,
                     "listState": list_state_label,
@@ -261,7 +274,7 @@ def gimy_launch_movie(movieId: str, movieTitle: str = "", imageUrl: str = "", su
     if seekPosition:
         store = pull_movie_store(deviceIp)
         dur_key = f"progress_dur_{movieId}"
-        duration_ms = store.get(dur_key, 0)
+        duration_ms = int(store.get(dur_key, 0) or 0)
         duration_sec = duration_ms // 1000
         
         seek_sec = parse_time_to_seconds(seekPosition, duration_sec)
@@ -420,11 +433,19 @@ def gimy_set_movie_list_state(movieId: str, state: int, deviceIp: str = "100.87.
     if state not in [0, 1, 2, 3]:
         return json.dumps({"success": False, "error": f"Invalid state value: {state}. Must be 0, 1, 2, or 3."})
         
+    title, img_url, sub = fetch_movie_details(movieId)
+    
     cmd = [
-        "adb", "-s", f"{deviceIp}:5555", "shell", "am", "start", "-n", "com.gimytv.horror/.MainActivity",
+        "adb", "-s", f"{deviceIp}:5555", "shell", "am", "broadcast", "-a", "com.gimytv.horror.UPDATE_LIST",
         "-e", "movieId", f"'{movieId}'",
-        "-e", "listState", f"'{state}'"
+        "--ei", "listState", str(state)
     ]
+    if title:
+        cmd += [
+            "-e", "title", f"'{title}'",
+            "-e", "imageUrl", f"'{img_url}'",
+            "-e", "subtitle", f"'{sub}'"
+        ]
     
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)

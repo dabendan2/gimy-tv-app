@@ -494,5 +494,58 @@ def gimy_set_movie_list_state(movieId: str, state: int, deviceIp: str = "100.87.
     except Exception as e:
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
+@mcp.tool()
+def gimy_get_watchlist(deviceIp: str = "100.87.89.52") -> str:
+    """
+    Retrieve the current watchlist and favorites list from the TV, along with progress metadata.
+    
+    Args:
+        deviceIp: The TV's IP (default: 100.87.89.52)
+    """
+    store = pull_movie_store(deviceIp)
+    watchlist = []
+    
+    for key, value in store.items():
+        if key.startswith("list_state_"):
+            try:
+                state_val = int(value)
+            except (ValueError, TypeError):
+                continue
+                
+            if state_val in [1, 2]:
+                movie_id = key.replace("list_state_", "")
+                
+                title = store.get(f"meta_title_{movie_id}", f"影片 #{movie_id}")
+                img_url = store.get(f"meta_image_{movie_id}", "")
+                subtitle = store.get(f"meta_subtitle_{movie_id}", "")
+                
+                progress_label = "未觀看"
+                pos_key = f"progress_pos_{movie_id}"
+                dur_key = f"progress_dur_{movie_id}"
+                if pos_key in store and dur_key in store:
+                    try:
+                        pos_ms = int(store[pos_key])
+                        dur_ms = int(store[dur_key])
+                        if dur_ms > 0:
+                            pos_sec = pos_ms // 1000
+                            dur_sec = dur_ms // 1000
+                            pct = (pos_ms / dur_ms) * 100
+                            progress_label = f"已觀看 {pct:.1f}% ({format_seconds_to_time(pos_sec)} / {format_seconds_to_time(dur_sec)})"
+                    except (ValueError, TypeError):
+                        pass
+                
+                state_label = "待播清單 📝" if state_val == 1 else "喜愛 ❤️"
+                
+                watchlist.append({
+                    "movieId": movie_id,
+                    "movieTitle": title,
+                    "imageUrl": img_url,
+                    "subtitle": subtitle,
+                    "listState": state_label,
+                    "progress": progress_label
+                })
+                
+    return json.dumps(watchlist, ensure_ascii=False, indent=2)
+
 if __name__ == "__main__":
     mcp.run()

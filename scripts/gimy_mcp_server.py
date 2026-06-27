@@ -332,6 +332,34 @@ def gimy_playback_control(action: str, seekSeconds: int = 30, deviceIp: str = "1
         deviceIp: The TV's IP (default: 100.87.89.52)
     """
     action = action.upper()
+    
+    # 1. Focus Protection: Check if Gimy TV is in the foreground before sending DPAD keyevents
+    if action in ["PLAY", "PAUSE", "TOGGLE_PLAY_PAUSE", "SEEK_FORWARD", "SEEK_BACKWARD"]:
+        try:
+            focus_res = subprocess.run(
+                ["adb", "-s", f"{deviceIp}:5555", "shell", "dumpsys", "window"],
+                capture_output=True, text=True, timeout=3
+            )
+            is_gimy_focused = False
+            current_app = "Unknown"
+            for line in focus_res.stdout.splitlines():
+                if "mCurrentFocus" in line:
+                    current_app = line.strip()
+                    if "com.gimytv.horror" in line:
+                        is_gimy_focused = True
+                    break
+            
+            if not is_gimy_focused:
+                return json.dumps({
+                    "success": False,
+                    "error": f"Gimy TV is not in the foreground. Current focus: {current_app}. Operation blocked to prevent disrupting other applications."
+                }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": f"Failed to verify TV focus state: {str(e)}"
+            }, ensure_ascii=False, indent=2)
+
     cmd_sequences = []
     
     if action in ["PLAY", "PAUSE", "TOGGLE_PLAY_PAUSE"]:

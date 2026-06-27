@@ -37,6 +37,18 @@ public class MainActivity extends Activity {
                         refreshMovieGrid();
                     }
                 });
+            } else if (key != null && key.equals("search_query")) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        searchQuery = sharedPreferences.getString("search_query", "");
+                        Log.i(TAG, "SharedPreference changed search_query -> " + searchQuery);
+                        if (tvSearchKeyword != null) {
+                            tvSearchKeyword.setText(searchQuery);
+                        }
+                        refreshMovieGrid();
+                    }
+                });
             }
         }
     };
@@ -86,6 +98,7 @@ public class MainActivity extends Activity {
         }
 
         movieStore = new MovieStore(this);
+        searchQuery = getSharedPreferences("GimyHorror", MODE_PRIVATE).getString("search_query", null);
         getSharedPreferences("GimyHorror", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(prefsListener);
 
         // Root container (holds main layout and full-screen video overlay)
@@ -131,7 +144,7 @@ public class MainActivity extends Activity {
         titleLayout.addView(subTitle);
 
         tvSearchKeyword = new TextView(this);
-        tvSearchKeyword.setText("");
+        tvSearchKeyword.setText(searchQuery != null ? searchQuery : "");
         tvSearchKeyword.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         tvSearchKeyword.setTextColor(Color.parseColor("#9AA0A6"));
         LinearLayout.LayoutParams keywordParams = new LinearLayout.LayoutParams(

@@ -40,6 +40,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.gimytv.horror.UPDATE_LIST" />
+                <action android:name="com.gimytv.horror.UPDATE_SEARCH" />
             </intent-filter>
         </receiver>
     </application>

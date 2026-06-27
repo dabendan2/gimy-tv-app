@@ -226,9 +226,9 @@ def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp
         return json.dumps({"error": f"Failed to search: {str(e)}"}, ensure_ascii=False)
         
     if not silent:
-        # Launch Gimy TV App on the TV with searchQuery extra
+        # Send broadcast to Gimy TV App to update search query without stealing focus
         cmd = [
-            "adb", "-s", f"{deviceIp}:5555", "shell", "am", "start", "-n", "com.gimytv.horror/.MainActivity",
+            "adb", "-s", f"{deviceIp}:5555", "shell", "am", "broadcast", "-a", "com.gimytv.horror.UPDATE_SEARCH",
             "-e", "searchQuery", f"'{query}'"
         ]
         try:

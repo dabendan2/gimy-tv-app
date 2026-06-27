@@ -322,7 +322,7 @@ def gimy_launch_movie(movieId: str, movieTitle: str = "", imageUrl: str = "", su
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 @mcp.tool()
-def gimy_playback_control(action: str, seekSeconds: int = 30, deviceIp: str = "100.87.89.52") -> str:
+def gimy_control_playback(action: str, seekSeconds: int = 30, deviceIp: str = "100.87.89.52") -> str:
     """
     Control movie playback state (PLAY, PAUSE, SEEK_FORWARD, SEEK_BACKWARD, VOLUME_UP, VOLUME_DOWN).
     
@@ -449,7 +449,7 @@ def gimy_get_tv_state(deviceIp: str = "100.87.89.52") -> str:
     return json.dumps(tv_state, ensure_ascii=False, indent=2)
 
 @mcp.tool()
-def gimy_set_movie_list_state(movieId: str, state: int, deviceIp: str = "100.87.89.52") -> str:
+def gimy_set_list_state(movieId: str, state: int, deviceIp: str = "100.87.89.52") -> str:
     """
     Set a movie's watchlist or favorites list state (None, Watch List, Liked/Favorite, Disliked).
     

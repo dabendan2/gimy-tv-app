@@ -24,7 +24,7 @@ public class FilterBarManager {
     private String selectedRegion = "全部";
     private String selectedYear = "全部";
 
-    private final String[] SORTS = {"熱門推薦", "最新上架", "好評高分"};
+    private final String[] SORTS = {"熱門推薦", "最新上架", "好評高分", "我的待播"};
     private final String[] REGIONS = {"全部", "泰國", "日本", "韓國", "美國", "台灣", "香港"};
     private final String[] YEARS = {"全部", "2026", "2025", "2024", "2023", "2022", "2021", "2020"};
 

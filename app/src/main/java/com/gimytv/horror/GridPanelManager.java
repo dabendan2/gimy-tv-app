@@ -26,6 +26,7 @@ public class GridPanelManager {
     
     private ArrayList<Movie> currentMoviesList = new ArrayList<>();
     private View lastFocusedCard = null;
+    private String lastFocusedMovieId = null;
 
     public GridPanelManager(Context context, LinearLayout gridContainer, MovieStore movieStore, GridPanelListener listener) {
         this.context = context;
@@ -55,6 +56,11 @@ public class GridPanelManager {
         }
         final ArrayList<Movie> sortedMovies = MovieSorter.sortMovies(movies, statesMap);
         this.currentMoviesList = sortedMovies; // Cache sorted list for rapid local refresh
+
+        // Save metadata of all current movies to MovieStore
+        for (Movie m : sortedMovies) {
+            movieStore.saveMovieMetadata(m.id, m.title, m.imageUrl, m.note, m.subtitle);
+        }
 
         int rowCount = (int) Math.ceil(sortedMovies.size() / 3f);
         for (int r = 0; r < rowCount; r++) {
@@ -142,6 +148,7 @@ public class GridPanelManager {
                     public void onFocusChange(View v, boolean hasFocus) {
                         if (hasFocus) {
                             lastFocusedCard = card; // Save current card reference
+                            lastFocusedMovieId = m.id;
                             card.setBackgroundColor(Color.parseColor("#303134")); // Light Slate gray
                             card.setScaleX(1.05f);
                             card.setScaleY(1.05f);
@@ -187,11 +194,39 @@ public class GridPanelManager {
             }
         }
 
-        if (!isFilterFocused) {
-            if (gridContainer.getChildCount() > 0) {
-                LinearLayout firstRow = (LinearLayout) gridContainer.getChildAt(0);
-                if (firstRow.getChildCount() > 0) {
-                    firstRow.getChildAt(0).requestFocus();
+        View cardToFocus = null;
+        if (lastFocusedMovieId != null) {
+            for (int r = 0; r < gridContainer.getChildCount(); r++) {
+                View rowView = gridContainer.getChildAt(r);
+                if (rowView instanceof LinearLayout) {
+                    LinearLayout row = (LinearLayout) rowView;
+                    for (int c = 0; c < row.getChildCount(); c++) {
+                        View cardView = row.getChildAt(c);
+                        if (cardView instanceof LinearLayout && cardView.getTag() instanceof Movie) {
+                            Movie movie = (Movie) cardView.getTag();
+                            if (movie != null && lastFocusedMovieId.equals(movie.id)) {
+                                cardToFocus = cardView;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (cardToFocus != null) break;
+            }
+        }
+
+        if (cardToFocus != null) {
+            lastFocusedCard = cardToFocus;
+            if (!isFilterFocused) {
+                cardToFocus.requestFocus();
+            }
+        } else {
+            if (!isFilterFocused) {
+                if (gridContainer.getChildCount() > 0) {
+                    LinearLayout firstRow = (LinearLayout) gridContainer.getChildAt(0);
+                    if (firstRow.getChildCount() > 0) {
+                        firstRow.getChildAt(0).requestFocus();
+                    }
                 }
             }
         }

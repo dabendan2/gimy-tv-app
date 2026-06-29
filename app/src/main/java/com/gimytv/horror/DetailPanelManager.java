@@ -84,6 +84,8 @@ public class DetailPanelManager {
         this.selectedMovieImageUrl = imageUrl;
         this.selectedMovieSubtitle = subtitle;
 
+        movieStore.saveMovieMetadata(id, title, imageUrl, note, subtitle);
+
         if (rightScrollView != null) {
             rightScrollView.scrollTo(0, 0);
         }
@@ -103,6 +105,9 @@ public class DetailPanelManager {
                 final String playPath = details[1];
                 final String region = details[2];
                 final String year = details[3];
+                final String actors = details[4];
+                final String director = details[5];
+                final String category = details[6];
                 final ArrayList<String> parsedLines = GimyParser.parseAllLines(detailHtml);
 
                 activity.runOnUiThread(new Runnable() {
@@ -110,10 +115,17 @@ public class DetailPanelManager {
                     public void run() {
                         if (id.equals(selectedMovieId)) {
                             tvDetailSynopsis.setText(synopsis);
-                            tvDetailMeta.setText(String.format("地區/時間：%s/%s\n演員：%s", 
-                                region.isEmpty() ? "未知" : region, 
-                                year.isEmpty() ? "未知" : year, 
-                                selectedMovieSubtitle.isEmpty() ? "未知" : selectedMovieSubtitle));
+                            
+                            String displayActors = (actors != null && !actors.isEmpty()) ? actors : selectedMovieSubtitle;
+                            
+                            // If displayActors still contains category/year (e.g. "恐怖片 · 2026"), let's clean it up
+                            if (displayActors.contains(" · ") || displayActors.contains(" ·")) {
+                                displayActors = "未知";
+                            }
+                            
+                            StringBuilder metaSb = new StringBuilder();
+                            metaMetaFormat(metaSb, region, year, category, director, displayActors);
+                            tvDetailMeta.setText(metaSb.toString());
 
                             availableLines.clear();
                             if (parsedLines != null && !parsedLines.isEmpty()) {
@@ -452,5 +464,22 @@ public class DetailPanelManager {
 
     public Button getPlayButton() {
         return btnPlayRef;
+    }
+
+    private void metaMetaFormat(StringBuilder sb, String region, String year, String category, String director, String actors) {
+        sb.append("地區/時間：")
+          .append(region.isEmpty() ? "未知" : region)
+          .append("/")
+          .append(year.isEmpty() ? "未知" : year);
+          
+        if (category != null && !category.isEmpty()) {
+            sb.append("  類型：").append(category);
+        }
+        
+        if (director != null && !director.isEmpty()) {
+            sb.append("\n導演：").append(director);
+        }
+        
+        sb.append("\n演員：").append(actors.isEmpty() ? "未知" : actors);
     }
 }

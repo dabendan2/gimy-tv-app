@@ -30,6 +30,16 @@ public class TestRunner {
             failed++;
         }
 
+        // Run GimyPlayer Tests
+        try {
+            GimyPlayerTest.runTests();
+            passed++;
+        } catch (Throwable t) {
+            System.err.println("  [FAIL] GimyPlayer tests failed!");
+            t.printStackTrace();
+            failed++;
+        }
+
         System.out.println("=================================================");
         System.out.println("TEST RUN SUMMARY:");
         System.out.println("  PASSED MODULES: " + passed);

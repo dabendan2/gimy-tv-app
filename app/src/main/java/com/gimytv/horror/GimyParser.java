@@ -10,6 +10,16 @@ import java.util.ArrayList;
 public class GimyParser {
     private static final String TAG = "GimyHorror_Parser";
 
+    public static String extractBetween(String source, String startToken, String endToken, int fromIndex) {
+        if (source == null) return "";
+        int startIdx = source.indexOf(startToken, fromIndex);
+        if (startIdx == -1) return "";
+        int startPos = startIdx + startToken.length();
+        int endIdx = source.indexOf(endToken, startPos);
+        if (endIdx == -1) return "";
+        return source.substring(startPos, endIdx);
+    }
+
     public static String fetchHtml(String urlStr) {
         try {
             Log.i(TAG, "Fetching HTML from: " + urlStr);
@@ -40,10 +50,156 @@ public class GimyParser {
         ArrayList<Movie> movies = new ArrayList<>();
 
         // 1. Check if it's the search page
-        if (html.contains("details-info-min")) {
+        if (html.contains("details-info-min") || html.contains("class=\"search-list\"") || html.contains("search-item")) {
             Log.i(TAG, "Detected Gimy search results page. Using specialized search parser.");
-            String[] blocks = html.split("class=\"details-info-min");
-            // Skip the first element which is the header html
+            if (html.contains("class=\"search-list\"") || html.contains("search-item")) {
+                String[] blocks = html.split("<article class=\"search-item\"");
+                if (blocks.length == 1) {
+                    blocks = html.split("class=\"search-item\"");
+                }
+                for (int i = 1; i < blocks.length; i++) {
+                    String block = blocks[i];
+                    
+                    String id = "";
+                    int hrefIdx = block.indexOf("href=\"/vod/");
+                    if (hrefIdx != -1) {
+                        int start = hrefIdx + 11;
+                        int end = block.indexOf(".html\"", start);
+                        if (end != -1) id = block.substring(start, end);
+                    }
+                    if (id.isEmpty()) continue;
+                    
+                    String title = "";
+                    int titleIdx = block.indexOf("class=\"search-item__title\">");
+                    if (titleIdx != -1) {
+                        int aIdx = block.indexOf("<a ", titleIdx);
+                        if (aIdx != -1) {
+                            int start = block.indexOf(">", aIdx) + 1;
+                            int end = block.indexOf("</a>", start);
+                            if (end != -1) title = block.substring(start, end).trim();
+                        }
+                    }
+                    if (title.isEmpty()) {
+                        int ariaIdx = block.indexOf("aria-label=\"");
+                        if (ariaIdx != -1) {
+                            int start = ariaIdx + 12;
+                            int end = block.indexOf("\"", start);
+                            if (end != -1) title = block.substring(start, end);
+                        }
+                    }
+                    
+                    String imageUrl = "";
+                    int imgIdx = block.indexOf("src=\"");
+                    if (imgIdx != -1) {
+                        int start = imgIdx + 5;
+                        int end = block.indexOf("\"", start);
+                        if (end != -1) imageUrl = block.substring(start, end);
+                    }
+                    
+                    String note = "HD";
+                    int metaIdx = block.indexOf("class=\"search-item__meta\">");
+                    if (metaIdx != -1) {
+                        int start = metaIdx + 26;
+                        int end = block.indexOf("</p>", start);
+                        if (end != -1) {
+                            String metaStr = block.substring(start, end).replaceAll("<[^>]*>", "").trim();
+                            String[] parts = metaStr.split("·");
+                            if (parts.length > 0) {
+                                note = parts[parts.length - 1].trim();
+                            }
+                        }
+                    }
+                    
+                    String subtitle = "";
+                    int subIdx = block.indexOf("主演:");
+                    if (subIdx == -1) {
+                        subIdx = block.indexOf("主演：");
+                    }
+                    if (subIdx != -1) {
+                        int start = subIdx + 3;
+                        int end = block.indexOf("</p>", start);
+                        if (end != -1) {
+                            subtitle = block.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                        }
+                    }
+                    
+                    movies.add(new Movie(id, title, imageUrl, note, subtitle));
+                }
+            } else {
+                String[] blocks = html.split("class=\"details-info-min");
+                // Skip the first element which is the header html
+                for (int i = 1; i < blocks.length; i++) {
+                    String block = blocks[i];
+                    
+                    String id = "";
+                    int hrefIdx = block.indexOf("href=\"/vod/");
+                    if (hrefIdx != -1) {
+                        int start = hrefIdx + 11;
+                        int end = block.indexOf(".html\"", start);
+                        if (end != -1) id = block.substring(start, end);
+                    }
+                    if (id.isEmpty()) continue;
+                    
+                    String title = "";
+                    int titleIdx = block.indexOf("title=\"");
+                    if (titleIdx != -1) {
+                        int start = titleIdx + 7;
+                        int end = block.indexOf("\"", start);
+                        if (end != -1) title = block.substring(start, end);
+                    }
+                    
+                    String imageUrl = "";
+                    int imgIdx = block.indexOf("data-original=\"");
+                    if (imgIdx != -1) {
+                        int start = imgIdx + 15;
+                        int end = block.indexOf("\"", start);
+                        if (end != -1) imageUrl = block.substring(start, end);
+                    } else {
+                        int styleIdx = block.indexOf("url('");
+                        if (styleIdx != -1) {
+                            int start = styleIdx + 5;
+                            int end = block.indexOf("'", start);
+                            if (end != -1) imageUrl = block.substring(start, end);
+                        }
+                    }
+                    
+                    String note = "HD";
+                    int noteIdx = block.indexOf("class=\"note");
+                    if (noteIdx != -1) {
+                        int start = block.indexOf(">", noteIdx) + 1;
+                        int end = block.indexOf("</span>", start);
+                        if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
+                    } else {
+                        int stateIdx = block.indexOf("<span>狀態：</span>");
+                        if (stateIdx != -1) {
+                            int start = stateIdx + 14;
+                            int end = block.indexOf("</li>", start);
+                            if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
+                        }
+                    }
+                    
+                    String subtitle = "";
+                    int subIdx = block.indexOf("主演：</span>");
+                    if (subIdx != -1) {
+                        int start = subIdx + 9;
+                        int end = block.indexOf("</li>", start);
+                        if (end != -1) {
+                            subtitle = block.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                        }
+                    }
+                    
+                    movies.add(new Movie(id, title, imageUrl, note, subtitle));
+                }
+            }
+            Log.d(TAG, "Search parser successfully parsed " + movies.size() + " movies from search results.");
+            return movies;
+        }
+
+        if (html.contains("class=\"grid\"")) {
+            Log.i(TAG, "Detected new Gimy grid layout. Using specialized grid parser.");
+            int gridIdx = html.indexOf("class=\"grid\"");
+            String gridHtml = html.substring(gridIdx);
+            String[] blocks = gridHtml.split("<article");
             for (int i = 1; i < blocks.length; i++) {
                 String block = blocks[i];
                 
@@ -57,49 +213,50 @@ public class GimyParser {
                 if (id.isEmpty()) continue;
                 
                 String title = "";
-                int titleIdx = block.indexOf("title=\"");
+                int titleIdx = block.indexOf("class=\"card__title\">");
                 if (titleIdx != -1) {
-                    int start = titleIdx + 7;
-                    int end = block.indexOf("\"", start);
-                    if (end != -1) title = block.substring(start, end);
+                    int start = titleIdx + 20;
+                    int end = block.indexOf("</h3>", start);
+                    if (end != -1) title = block.substring(start, end).trim();
+                }
+                if (title.isEmpty()) {
+                    int ariaIdx = block.indexOf("aria-label=\"");
+                    if (ariaIdx != -1) {
+                        int start = ariaIdx + 12;
+                        int end = block.indexOf("\"", start);
+                        if (end != -1) title = block.substring(start, end).trim();
+                    }
                 }
                 
                 String imageUrl = "";
-                int imgIdx = block.indexOf("data-original=\"");
+                int imgIdx = block.indexOf("src=\"");
                 if (imgIdx != -1) {
-                    int start = imgIdx + 15;
+                    int start = imgIdx + 5;
                     int end = block.indexOf("\"", start);
                     if (end != -1) imageUrl = block.substring(start, end);
-                } else {
-                    int styleIdx = block.indexOf("url('");
-                    if (styleIdx != -1) {
-                        int start = styleIdx + 5;
-                        int end = block.indexOf("'", start);
+                }
+                if (imageUrl.isEmpty() || imageUrl.contains("logow") || imageUrl.contains("logob")) {
+                    int origIdx = block.indexOf("data-original=\"");
+                    if (origIdx != -1) {
+                        int start = origIdx + 15;
+                        int end = block.indexOf("\"", start);
                         if (end != -1) imageUrl = block.substring(start, end);
                     }
                 }
                 
                 String note = "HD";
-                // On search page, state is usually after "<span>狀態：</span>" or in class="note"
-                int noteIdx = block.indexOf("class=\"note");
-                if (noteIdx != -1) {
-                    int start = block.indexOf(">", noteIdx) + 1;
+                int badgeIdx = block.indexOf("class=\"card__badge\">");
+                if (badgeIdx != -1) {
+                    int start = badgeIdx + 20;
                     int end = block.indexOf("</span>", start);
                     if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
-                } else {
-                    int stateIdx = block.indexOf("<span>狀態：</span>");
-                    if (stateIdx != -1) {
-                        int start = stateIdx + 14;
-                        int end = block.indexOf("</li>", start);
-                        if (end != -1) note = block.substring(start, end).trim().replaceAll("<[^>]*>", "");
-                    }
                 }
                 
                 String subtitle = "";
-                int subIdx = block.indexOf("主演：</span>");
-                if (subIdx != -1) {
-                    int start = subIdx + 9;
-                    int end = block.indexOf("</li>", start);
+                int metaIdx = block.indexOf("class=\"card__meta\">");
+                if (metaIdx != -1) {
+                    int start = metaIdx + 19;
+                    int end = block.indexOf("</p>", start);
                     if (end != -1) {
                         subtitle = block.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
                     }
@@ -107,7 +264,7 @@ public class GimyParser {
                 
                 movies.add(new Movie(id, title, imageUrl, note, subtitle));
             }
-            Log.d(TAG, "Search parser successfully parsed " + movies.size() + " movies from search results.");
+            Log.d(TAG, "Grid parser successfully parsed " + movies.size() + " movies.");
             return movies;
         }
 
@@ -197,17 +354,30 @@ public class GimyParser {
                 synopsis = synopsis.replaceAll("<[^>]*>", "");
             }
         } else {
-            Log.w(TAG, "Could not find synopsis marker 'class=\"details-content-all\"' in detail HTML.");
+            // New layout fallback: search for id="desc" or class="desc-block"
+            int descIdx = detailHtml.indexOf("id=\"desc\"");
+            if (descIdx == -1) {
+                descIdx = detailHtml.indexOf("class=\"desc-block\"");
+            }
+            if (descIdx != -1) {
+                int divStart = detailHtml.indexOf("<div>", descIdx);
+                if (divStart != -1) {
+                    int start = divStart + 5;
+                    int end = detailHtml.indexOf("</div>", start);
+                    if (end != -1) {
+                        synopsis = detailHtml.substring(start, end).trim();
+                        synopsis = synopsis.replaceAll("<[^>]*>", "");
+                    }
+                }
+            } else {
+                Log.w(TAG, "Could not find synopsis marker 'class=\"details-content-all\"' or 'id=\"desc\"' in detail HTML.");
+            }
         }
 
         String playPath = "";
-        int playIdx = detailHtml.indexOf("href=\"/ep/");
-        if (playIdx != -1) {
-            int start = playIdx + 6;
-            int end = detailHtml.indexOf("\"", start);
-            if (end != -1) {
-                playPath = detailHtml.substring(start, end);
-            }
+        String epSuffix = extractBetween(detailHtml, "href=\"/ep/", "\"", 0);
+        if (!epSuffix.isEmpty()) {
+            playPath = "/ep/" + epSuffix;
         }
         if (playPath.isEmpty()) {
             Log.w(TAG, "Could not parse play path (href=\"/ep/\") in detail HTML.");
@@ -227,6 +397,40 @@ public class GimyParser {
                 int end = detailHtml.indexOf("</li>", start);
                 if (end != -1) {
                     region = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                }
+            }
+        }
+        if (region.isEmpty()) {
+            int langIdx = detailHtml.indexOf("\"inLanguage\":\"");
+            if (langIdx == -1) {
+                langIdx = detailHtml.indexOf("\"inLanguage\": \"");
+            }
+            if (langIdx != -1) {
+                int start = detailHtml.indexOf(":", langIdx);
+                if (start != -1) {
+                    start = detailHtml.indexOf("\"", start);
+                    if (start != -1) {
+                        start += 1;
+                        int end = detailHtml.indexOf("\"", start);
+                        if (end != -1) {
+                            String lang = detailHtml.substring(start, end).trim();
+                            if ("漢語普通話".equals(lang) || "國語".equals(lang)) {
+                                region = "華語";
+                            } else if ("粵語".equals(lang)) {
+                                region = "香港";
+                            } else if ("日語".equals(lang)) {
+                                region = "日本";
+                            } else if ("韓語".equals(lang)) {
+                                region = "韓國";
+                            } else if ("泰語".equals(lang)) {
+                                region = "泰國";
+                            } else if ("英語".equals(lang)) {
+                                region = "歐美";
+                            } else {
+                                region = lang;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -250,8 +454,213 @@ public class GimyParser {
                 }
             }
         }
+        if (year.isEmpty()) {
+            int dateIdx = detailHtml.indexOf("\"datePublished\":\"");
+            if (dateIdx == -1) {
+                dateIdx = detailHtml.indexOf("\"datePublished\": \"");
+            }
+            if (dateIdx != -1) {
+                int start = detailHtml.indexOf(":", dateIdx);
+                if (start != -1) {
+                    start = detailHtml.indexOf("\"", start);
+                    if (start != -1) {
+                        start += 1;
+                        int end = detailHtml.indexOf("\"", start);
+                        if (end != -1 && end - start >= 4) {
+                            year = detailHtml.substring(start, start + 4);
+                        }
+                    }
+                }
+            }
+        }
 
-        return new String[]{synopsis, playPath, region, year};
+        String category = "";
+
+        int breadcrumbIdx = detailHtml.indexOf("\"BreadcrumbList\"");
+        if (breadcrumbIdx != -1) {
+            int startJson = detailHtml.lastIndexOf("<script", breadcrumbIdx);
+            int endJson = detailHtml.indexOf("</script>", breadcrumbIdx);
+            if (startJson != -1 && endJson != -1 && endJson > startJson) {
+                String jsonLd = detailHtml.substring(startJson, endJson);
+                
+                ArrayList<String> names = new ArrayList<>();
+                int searchStart = 0;
+                while (true) {
+                    int nameIdx = jsonLd.indexOf("\"name\":\"", searchStart);
+                    if (nameIdx == -1) {
+                        nameIdx = jsonLd.indexOf("\"name\": \"", searchStart);
+                    }
+                    if (nameIdx == -1) break;
+                    
+                    int valStart = jsonLd.indexOf("\"", nameIdx + 7);
+                    if (valStart != -1) {
+                        valStart += 1;
+                        int valEnd = jsonLd.indexOf("\"", valStart);
+                        if (valEnd != -1) {
+                            String name = jsonLd.substring(valStart, valEnd).trim();
+                            names.add(name);
+                            searchStart = valEnd + 1;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                
+                String parentCat = "";
+                String subCat = "";
+                
+                if (names.size() >= 4) {
+                    parentCat = names.get(1);
+                    subCat = names.get(2);
+                } else if (names.size() == 3) {
+                    parentCat = names.get(1);
+                    subCat = names.get(1);
+                }
+                
+                if (!subCat.isEmpty()) {
+                    category = subCat;
+                    
+                    if (region.isEmpty()) {
+                        if ("韓劇".equals(subCat)) {
+                            region = "韓國";
+                        } else if ("日劇".equals(subCat)) {
+                            region = "日本";
+                        } else if ("美劇".equals(subCat) || "英劇".equals(subCat) || "歐美劇".equals(subCat)) {
+                            region = "歐美";
+                        } else if ("陸劇".equals(subCat) || "中劇".equals(subCat)) {
+                            region = "大陸";
+                        } else if ("台劇".equals(subCat)) {
+                            region = "台灣";
+                        } else if ("港劇".equals(subCat)) {
+                            region = "香港";
+                        } else if ("泰劇".equals(subCat)) {
+                            region = "泰國";
+                        } else if ("動漫".equals(subCat) || "日漫".equals(subCat)) {
+                            region = "日本";
+                        }
+                    }
+                }
+            }
+        }
+
+        String actors = "";
+        int actIdx = detailHtml.indexOf("演員:");
+        if (actIdx == -1) {
+            actIdx = detailHtml.indexOf("演員：");
+        }
+        if (actIdx != -1) {
+            int start = detailHtml.indexOf("</strong>", actIdx);
+            if (start == -1) {
+                start = detailHtml.indexOf(">", actIdx);
+            }
+            if (start != -1) {
+                if (detailHtml.charAt(start) == '>') {
+                    start += 1;
+                } else {
+                    start += 9;
+                }
+                int end = detailHtml.indexOf("</p>", start);
+                if (end != -1) {
+                    actors = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                }
+            }
+        }
+
+        String director = "";
+        int dirIdx = detailHtml.indexOf("導演:");
+        if (dirIdx == -1) {
+            dirIdx = detailHtml.indexOf("導演：");
+        }
+        if (dirIdx != -1) {
+            int start = detailHtml.indexOf("</strong>", dirIdx);
+            if (start == -1) {
+                start = detailHtml.indexOf(">", dirIdx);
+            }
+            if (start != -1) {
+                if (detailHtml.charAt(start) == '>') {
+                    start += 1;
+                } else {
+                    start += 9;
+                }
+                int end = detailHtml.indexOf("</p>", start);
+                if (end != -1) {
+                    director = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+                }
+            }
+        }
+
+        // Self-healing fallback heuristics for year and region
+        if (year.isEmpty()) {
+            String title = "";
+            int titleStart = detailHtml.indexOf("<title>");
+            int titleEnd = detailHtml.indexOf("</title>");
+            if (titleStart != -1 && titleEnd != -1 && titleEnd > titleStart) {
+                String rawTitle = detailHtml.substring(titleStart + 7, titleEnd).trim();
+                int suffixIdx = rawTitle.indexOf("線上看");
+                if (suffixIdx != -1) {
+                    title = rawTitle.substring(0, suffixIdx).trim();
+                } else {
+                    title = rawTitle;
+                }
+            }
+
+            String imageUrl = "";
+            int imgIdx = detailHtml.indexOf("og:image\"");
+            if (imgIdx != -1) {
+                int contentIdx = detailHtml.indexOf("content=\"", imgIdx);
+                if (contentIdx != -1 && contentIdx < imgIdx + 100) {
+                    int end = detailHtml.indexOf("\"", contentIdx + 9);
+                    if (end != -1) imageUrl = detailHtml.substring(contentIdx + 9, end);
+                }
+            }
+
+            String note = "";
+            int noteIdx = detailHtml.indexOf("狀態：</span>");
+            if (noteIdx == -1) {
+                noteIdx = detailHtml.indexOf("更新：</span>");
+            }
+            if (noteIdx != -1) {
+                int start = detailHtml.indexOf("</span>", noteIdx) + 7;
+                int end = detailHtml.indexOf("</li>", start);
+                if (end != -1) note = detailHtml.substring(start, end).replaceAll("<[^>]*>", "").trim();
+            }
+
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\b(19\\d{2}|20\\d{2})\\b");
+            if (!note.isEmpty()) {
+                java.util.regex.Matcher m = p.matcher(note);
+                if (m.find()) {
+                    year = m.group(1);
+                }
+            }
+            if (year.isEmpty() && !title.isEmpty()) {
+                java.util.regex.Matcher m = p.matcher(title);
+                if (m.find()) {
+                    year = m.group(1);
+                }
+            }
+            if (year.isEmpty() && !imageUrl.isEmpty() && imageUrl.contains("/upload/vod/")) {
+                int idx = imageUrl.indexOf("/upload/vod/");
+                if (idx != -1 && imageUrl.length() >= idx + 16) {
+                    String part = imageUrl.substring(idx + 12, idx + 16);
+                    if (part.matches("\\d{4}")) {
+                        year = part;
+                    }
+                }
+            }
+        }
+
+        if (region.isEmpty()) {
+            if (!actors.isEmpty()) {
+                String firstPart = actors.substring(0, Math.min(actors.length(), 15));
+                if (firstPart.contains("·") || firstPart.contains("•") || firstPart.matches(".*[a-zA-Z].*")) {
+                    region = "歐美";
+                }
+            }
+        }
+
+        return new String[]{synopsis, playPath, region, year, actors, director, category};
     }
 
     public static ArrayList<Movie> parseRecommendations(String detailHtml) {
@@ -328,22 +737,10 @@ public class GimyParser {
 
     public static String parseM3U8Url(String playHtml) {
         String m3u8Url = "";
-        int pdIdx = playHtml.indexOf("var player_data=");
-        if (pdIdx != -1) {
-            int start = pdIdx + 16;
-            int end = playHtml.indexOf("</script>", start);
-            if (end != -1) {
-                String pdJson = playHtml.substring(start, end).trim();
-                int urlIdx = pdJson.indexOf("\"url\":\"");
-                if (urlIdx != -1) {
-                    int urlStart = urlIdx + 7;
-                    int urlEnd = pdJson.indexOf("\"", urlStart);
-                    if (urlEnd != -1) {
-                        m3u8Url = pdJson.substring(urlStart, urlEnd);
-                        m3u8Url = m3u8Url.replace("\\/", "/");
-                    }
-                }
-            }
+        String pdJson = extractBetween(playHtml, "var player_data=", "</script>", 0).trim();
+        if (!pdJson.isEmpty()) {
+            m3u8Url = extractBetween(pdJson, "\"url\":\"", "\"", 0);
+            m3u8Url = m3u8Url.replace("\\/", "/");
         }
         if (m3u8Url.isEmpty()) {
             Log.e(TAG, "Failed to parse M3U8 streaming URL from player_data JSON.");
@@ -399,5 +796,97 @@ public class GimyParser {
             Log.e(TAG, "Failed to construct category URL", e);
             return "https://gimyplus.com/show/10--hits---------.html"; // Fallback standard URL
         }
+    }
+
+    public static Movie parseMovieFromDetailPage(String id, String html) {
+        String title = "";
+        
+        // 1. Try <title> tag first - extremely standard and reliable!
+        int titleStart = html.indexOf("<title>");
+        int titleEnd = html.indexOf("</title>");
+        if (titleStart != -1 && titleEnd != -1 && titleEnd > titleStart) {
+            String rawTitle = html.substring(titleStart + 7, titleEnd).trim();
+            int suffixIdx = rawTitle.indexOf("線上看");
+            if (suffixIdx != -1) {
+                title = rawTitle.substring(0, suffixIdx).trim();
+            } else {
+                title = rawTitle;
+            }
+        }
+
+        // 2. Try <h1 class="text-overflow"> - Gimy's direct movie title header
+        if (title.isEmpty()) {
+            int h1Start = html.indexOf("<h1 class=\"text-overflow\">");
+            if (h1Start != -1) {
+                int h1End = html.indexOf("</h1>", h1Start);
+                if (h1End != -1) {
+                    title = html.substring(h1Start + 26, h1End).replaceAll("<[^>]*>", "").trim();
+                }
+            }
+        }
+
+        // 3. Try robust og:title parsing
+        if (title.isEmpty()) {
+            int ogIdx = html.indexOf("og:title\"");
+            if (ogIdx != -1) {
+                int contentIdx = html.indexOf("content=\"", ogIdx);
+                if (contentIdx != -1 && contentIdx < ogIdx + 100) {
+                    int end = html.indexOf("\"", contentIdx + 9);
+                    if (end != -1) {
+                        String rawTitle = html.substring(contentIdx + 9, end);
+                        int suffixIdx = rawTitle.indexOf("線上看");
+                        if (suffixIdx != -1) {
+                            title = rawTitle.substring(0, suffixIdx).trim();
+                        } else {
+                            title = rawTitle;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Fallback placeholder
+        if (title.isEmpty()) {
+            title = "收藏影片 #" + id;
+        }
+
+        String imageUrl = "";
+        int imgIdx = html.indexOf("og:image\"");
+        if (imgIdx != -1) {
+            int contentIdx = html.indexOf("content=\"", imgIdx);
+            if (contentIdx != -1 && contentIdx < imgIdx + 100) {
+                int end = html.indexOf("\"", contentIdx + 9);
+                if (end != -1) imageUrl = html.substring(contentIdx + 9, end);
+            }
+        }
+        if (imageUrl.isEmpty()) {
+            imgIdx = html.indexOf("data-original=\"");
+            if (imgIdx != -1) {
+                int start = imgIdx + 15;
+                int end = html.indexOf("\"", start);
+                if (end != -1) imageUrl = html.substring(start, end);
+            }
+        }
+
+        String note = "HD";
+        int noteIdx = html.indexOf("狀態：</span>");
+        if (noteIdx == -1) {
+            noteIdx = html.indexOf("更新：</span>");
+        }
+        if (noteIdx != -1) {
+            int start = html.indexOf("</span>", noteIdx) + 7;
+            int end = html.indexOf("</li>", start);
+            if (end != -1) note = html.substring(start, end).replaceAll("<[^>]*>", "").trim();
+        }
+
+        String subtitle = "";
+        int subIdx = html.indexOf("主演：</span>");
+        if (subIdx != -1) {
+            int start = html.indexOf("</span>", subIdx) + 7;
+            int end = html.indexOf("</li>", start);
+            if (end != -1) subtitle = html.substring(start, end).replaceAll("<[^>]*>", "").replace("&nbsp;", "").trim();
+        }
+
+        return new Movie(id, title, imageUrl, note, subtitle);
     }
 }

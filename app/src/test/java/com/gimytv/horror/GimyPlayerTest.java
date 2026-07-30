@@ -10,6 +10,7 @@ public class GimyPlayerTest {
         testScrubbingCalculations();
         testPreviewStripLayoutAndClamping();
         testProgressSaveAllowed();
+        testPauseTitleVisibility();
 
         System.out.println("  [PASS] All GimyPlayer (TimeUtils) tests passed successfully!");
     }
@@ -150,5 +151,27 @@ public class GimyPlayerTest {
         if (s9) throw new AssertionError("Scenario 9: Invalid duration should not be near end");
 
         System.out.println("    [PASS] Progress save validation logic (including force bypass & isNearEnd) verified!");
+    }
+
+    private static void testPauseTitleVisibility() {
+        System.out.println("  Testing Pause Title Visibility state rules...");
+
+        // Scenario 1: Active playback (isPlaying=true, isSeekingMode=false, isPausedState=false) -> should NOT show pause title (false)
+        boolean v1 = TimeUtils.shouldShowPauseTitle(true, false, false);
+        if (v1) throw new AssertionError("Scenario 1: Active playback must hide pause title");
+
+        // Scenario 2: Paused playback (isPlaying=false, isSeekingMode=false, isPausedState=true) -> SHOULD show pause title (true)
+        boolean v2 = TimeUtils.shouldShowPauseTitle(false, false, true);
+        if (!v2) throw new AssertionError("Scenario 2: Paused playback should show pause title");
+
+        // Scenario 3: Seeking mode while playing (isPlaying=true, isSeekingMode=true, isPausedState=true) -> SHOULD show pause title (true)
+        boolean v3 = TimeUtils.shouldShowPauseTitle(true, true, true);
+        if (!v3) throw new AssertionError("Scenario 3: Seeking mode should show pause title");
+
+        // Scenario 4: Resuming active playback after pause (isPlaying=true, isSeekingMode=false, isPausedState=false) -> should NOT show pause title (false)
+        boolean v4 = TimeUtils.shouldShowPauseTitle(true, false, false);
+        if (v4) throw new AssertionError("Scenario 4: Resumed playback must hide pause title");
+
+        System.out.println("    [PASS] Pause title visibility state rules verified!");
     }
 }

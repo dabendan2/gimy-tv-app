@@ -46,6 +46,13 @@ public class FilterBarManager {
         return selectedSort;
     }
 
+    public void setSelectedSort(String sort) {
+        if (sort != null && !sort.isEmpty()) {
+            this.selectedSort = sort;
+            buildFilterUI();
+        }
+    }
+
     public String getSelectedRegion() {
         return selectedRegion;
     }

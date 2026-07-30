@@ -41,10 +41,15 @@ public class MainActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        searchQuery = sharedPreferences.getString("search_query", "");
+                        String q = sharedPreferences.getString("search_query", null);
+                        if (q != null && !q.trim().isEmpty()) {
+                            searchQuery = q.trim();
+                        } else {
+                            searchQuery = null;
+                        }
                         Log.i(TAG, "SharedPreference changed search_query -> " + searchQuery);
                         if (tvSearchKeyword != null) {
-                            tvSearchKeyword.setText(searchQuery);
+                            tvSearchKeyword.setText(searchQuery != null ? searchQuery : "");
                         }
                         refreshMovieGrid();
                     }
@@ -98,7 +103,9 @@ public class MainActivity extends Activity {
         }
 
         movieStore = new MovieStore(this);
-        searchQuery = getSharedPreferences("GimyHorror", MODE_PRIVATE).getString("search_query", null);
+        // Reset searchQuery on cold startup and clear stale preferences
+        searchQuery = null;
+        getSharedPreferences("GimyHorror", MODE_PRIVATE).edit().remove("search_query").apply();
         getSharedPreferences("GimyHorror", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(prefsListener);
 
         // Root container (holds main layout and full-screen video overlay)
@@ -161,6 +168,10 @@ public class MainActivity extends Activity {
         filterContainer.setOrientation(LinearLayout.VERTICAL);
         filterContainer.setPadding(0, 0, 0, 20);
 
+        // Determine initial sort on app startup (Watchlist if non-empty, otherwise default category)
+        ArrayList<Movie> initialWatchlist = movieStore.getWatchlistMovies();
+        String initialSort = (initialWatchlist != null && !initialWatchlist.isEmpty()) ? "我的待播" : "熱門推薦";
+
         filterBarManager = new FilterBarManager(this, filterContainer, new FilterBarManager.FilterBarListener() {
             @Override
             public void onFilterChanged(String sort, String region, String year) {
@@ -171,6 +182,7 @@ public class MainActivity extends Activity {
                 refreshMovieGrid();
             }
         });
+        filterBarManager.setSelectedSort(initialSort);
         leftPanel.addView(filterContainer);
 
         // Grid Scroll Container
@@ -409,10 +421,17 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    final ArrayList<Movie> parsedMovies;
+                    ArrayList<Movie> parsedMovies;
                     if ("我的待播".equals(sort) && (searchQuery == null || searchQuery.isEmpty())) {
                         Log.i(TAG, "Loading local watchlist movies from MovieStore...");
                         parsedMovies = movieStore.getWatchlistMovies();
+                        if (parsedMovies == null || parsedMovies.isEmpty()) {
+                            Log.i(TAG, "Watchlist is empty, falling back to default category '熱門推薦'...");
+                            String queryUrl = GimyParser.constructCategoryUrl("熱門推薦", region, year);
+                            Log.d(TAG, "Fallback constructed query URL: " + queryUrl);
+                            String html = GimyParser.fetchHtml(queryUrl);
+                            parsedMovies = GimyParser.parseMoviesFromHtml(html);
+                        }
                     } else {
                         String queryUrl;
                         if (searchQuery != null && !searchQuery.isEmpty()) {
@@ -423,13 +442,22 @@ public class MainActivity extends Activity {
                         Log.d(TAG, "Constructed query URL: " + queryUrl);
                         String html = GimyParser.fetchHtml(queryUrl);
                         parsedMovies = GimyParser.parseMoviesFromHtml(html);
+                        if ((parsedMovies == null || parsedMovies.isEmpty()) && (searchQuery == null || searchQuery.isEmpty())) {
+                            ArrayList<Movie> watchlist = movieStore.getWatchlistMovies();
+                            if (watchlist != null && !watchlist.isEmpty()) {
+                                Log.i(TAG, "Online category fetch empty/failed, falling back to local watchlist movies...");
+                                parsedMovies = watchlist;
+                            }
+                        }
                     }
+
+                    final ArrayList<Movie> finalMovies = parsedMovies != null ? parsedMovies : new ArrayList<Movie>();
 
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            Log.i(TAG, "Grid updated with " + parsedMovies.size() + " movies.");
-                            gridPanelManager.populateGrid(parsedMovies);
+                            Log.i(TAG, "Grid updated with " + finalMovies.size() + " movies.");
+                            gridPanelManager.populateGrid(finalMovies);
                         }
                     });
                 } catch (Exception e) {

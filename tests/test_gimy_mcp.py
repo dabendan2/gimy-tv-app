@@ -51,7 +51,22 @@ print("ℹ️ Running in SAFE MOCK MODE (always enabled for automated testing)."
 patcher = patch("subprocess.run", side_effect=mock_subprocess_run)
 patcher.start()
 
-from gimy_mcp_server import gimy_search_movies, gimy_launch_movie, gimy_playback_control, gimy_get_tv_state
+def mock_urlopen(req, *args, **kwargs):
+    mock_resp = MagicMock()
+    sample_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../app/src/test/resources/test_samples/search_results_sample.html"))
+    if os.path.exists(sample_path):
+        with open(sample_path, "rb") as f:
+            html_bytes = f.read()
+    else:
+        html_bytes = b""
+    mock_resp.read.return_value = html_bytes
+    mock_resp.__enter__.return_value = mock_resp
+    return mock_resp
+
+url_patcher = patch("urllib.request.urlopen", side_effect=mock_urlopen)
+url_patcher.start()
+
+from gimy_mcp_server import gimy_search_movies, gimy_launch_movie, gimy_control_playback as gimy_playback_control, gimy_get_tv_state
 
 def test_closed_loop():
     print("==================================================")

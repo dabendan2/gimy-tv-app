@@ -4,7 +4,7 @@ import shutil
 import glob
 import sys
 
-WORKDIR = "/home/ubuntu/gimy-tv-app"
+WORKDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 os.chdir(WORKDIR)
 
 print("=================================================")
@@ -24,8 +24,8 @@ java_files = (
     glob.glob("app/src/test/java/com/gimytv/horror/*.java")
 )
 subprocess.run([
-    "javac", "-target", "1.8", "-source", "1.8",
-    "-bootclasspath", "/usr/lib/android-sdk/platforms/android-31/android.jar",
+    "javac", "-source", "1.8", "-target", "1.8",
+    "-classpath", "/usr/lib/android-sdk/platforms/android-31/android.jar",
     "-d", "app/build/obj"
 ] + java_files, check=True)
 

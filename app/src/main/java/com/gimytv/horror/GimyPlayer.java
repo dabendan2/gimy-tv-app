@@ -110,6 +110,9 @@ public class GimyPlayer {
         @Override
         public void run() {
             if (videoView != null && playerContainer.getVisibility() == View.VISIBLE) {
+                if (!TimeUtils.shouldShowPauseTitle(videoView.isPlaying(), isSeekingMode, !videoView.isPlaying()) && tvPlayerTitle != null && tvPlayerTitle.getVisibility() == View.VISIBLE) {
+                    setPlayerTitleVisible(false);
+                }
                 int posMs = videoView.getCurrentPosition();
                 int durMs = videoView.getDuration();
                 if (durMs > 0) {
@@ -212,6 +215,7 @@ public class GimyPlayer {
         this.shouldPlayOnPrepared = true;
 
         lastAutoSaveTimeMs = SystemClock.elapsedRealtime();
+        setPlayerTitleVisible(false);
         tvLoadingIndicator.setVisibility(View.VISIBLE);
         playerContainer.setVisibility(View.VISIBLE);
 
@@ -304,10 +308,12 @@ public class GimyPlayer {
                 if (shouldPlayOnPrepared) {
                     Log.i(TAG, "Starting video playback (shouldPlayOnPrepared=true).");
                     videoView.start();
+                    setPlayerTitleVisible(false);
                 } else {
                     Log.i(TAG, "Keeping video playback PAUSED (shouldPlayOnPrepared=false).");
                     videoView.pause();
                     showPlaybackIndicator("❚❚");
+                    setPlayerTitleVisible(true);
                 }
                 
                 if (gimyMediaSession != null) {
@@ -468,6 +474,7 @@ public class GimyPlayer {
         seekHandler.removeCallbacks(hideSeekOverlayRunnable);
         isSeekingMode = false;
         currentLoadingRequestTag++; // Discard active async frame requests
+        setPlayerTitleVisible(false);
         if (bottomSeekOverlayContainer != null) {
             bottomSeekOverlayContainer.setVisibility(View.GONE);
         }

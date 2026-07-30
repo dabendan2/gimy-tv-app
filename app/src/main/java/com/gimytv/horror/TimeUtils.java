@@ -41,4 +41,11 @@ public class TimeUtils {
     public static boolean isNearEnd(int position, int duration) {
         return duration > 0 && position >= duration - 15000;
     }
+
+    public static boolean shouldShowPauseTitle(boolean isPlaying, boolean isSeekingMode, boolean isPausedState) {
+        if (isPlaying && !isSeekingMode) {
+            return false;
+        }
+        return isPausedState || isSeekingMode;
+    }
 }

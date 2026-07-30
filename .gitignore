@@ -1,6 +1,8 @@
 # Android build outputs
 bin/
 obj/
+app/build/
+jacocoagent.jar
 
 # Keystores (sensitive, but can be tracked if user prefers)
 # my-release-key.jks

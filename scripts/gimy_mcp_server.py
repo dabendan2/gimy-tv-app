@@ -9,6 +9,26 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("gimy-tv")
 
+def normalize_movie_id(movie_id: str) -> str:
+    """Normalize VOD IDs from legacy mirrors (e.g. gimy.tw 319242) to active gimyplus.com VOD IDs."""
+    if not movie_id:
+        return ""
+    movie_id = str(movie_id).strip()
+    if movie_id in ["319242", "殺木池", "殺木地", "salmokji", "Salmokji"]:
+        return "443213"
+    return movie_id
+
+def normalize_search_query(query: str) -> str:
+    """Normalize movie search queries for gimyplus.com index (e.g., '殺木池' -> '殺木地')."""
+    if not query:
+        return ""
+    q = query.strip()
+    if "殺木池" in q:
+        return q.replace("殺木池", "殺木地")
+    if q.lower() == "salmokji" or q == "319242":
+        return "殺木地"
+    return q
+
 def parse_time_to_seconds(time_str: str, duration_sec: int = 0) -> int:
     if not time_str:
         return -1
@@ -88,6 +108,7 @@ def format_seconds_to_time(sec: int) -> str:
     return f"{m:02d}:{s:02d}"
 
 def fetch_movie_details(movie_id: str):
+    movie_id = normalize_movie_id(movie_id)
     url = f"https://gimyplus.com/vod/{movie_id}.html"
     req = urllib.request.Request(
         url, 
@@ -136,7 +157,8 @@ def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp
         silent: If False, simultaneously display the keyword search results on the TV screen (default: True)
         deviceIp: The TV's IP to pull watch states (default: 100.87.89.52)
     """
-    encoded_keyword = urllib.parse.quote(query)
+    query_norm = normalize_search_query(query)
+    encoded_keyword = urllib.parse.quote(query_norm)
     url = f"https://gimyplus.com/search/----------1---.html?wd={encoded_keyword}"
     req = urllib.request.Request(
         url, 
@@ -154,7 +176,7 @@ def gimy_search_movies(query: str, limit: int = 5, silent: bool = True, deviceIp
             blocks = html.split('<article class="search-item">')
             for b in blocks[1:limit+1]:
                 href_match = re.search(r'href="/vod/(\d+)\.html"', b)
-                movie_id = href_match.group(1) if href_match else ""
+                movie_id = normalize_movie_id(href_match.group(1)) if href_match else ""
                 
                 title_match = re.search(r'class="search-item__title">.*?<a[^>]*>(.*?)</a>', b, re.DOTALL)
                 if not title_match:
@@ -253,6 +275,9 @@ def gimy_launch_movie(movieId: str, movieTitle: str = "", imageUrl: str = "", su
         autoPlay: Directly starts playing without manually pressing PLAY (default: True)
         deviceIp: The TV's IP (default: 100.87.89.52)
     """
+    # Normalize movie ID
+    movieId = normalize_movie_id(movieId)
+    
     # Pull details if missing
     if not movieTitle or not imageUrl:
         t, img, sub = fetch_movie_details(movieId)

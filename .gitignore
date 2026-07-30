@@ -3,6 +3,7 @@ bin/
 obj/
 app/build/
 jacocoagent.jar
+.gradle/
 
 # Keystores (sensitive, but can be tracked if user prefers)
 # my-release-key.jks

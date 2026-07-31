@@ -90,7 +90,7 @@ class MainActivityCompose : ComponentActivity() {
             try {
                 val url = "https://gimyplus.com/vod/${movie.id}.html"
                 val html = GimyParser.fetchHtml(url)
-                val details = GimyParser.parseMovieDetails(url, html)
+                val details = GimyParser.parseMovieDetails(html)
 
                 runOnUiThread {
                     uiState = uiState.copy(

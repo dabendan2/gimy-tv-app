@@ -489,7 +489,7 @@ def gimy_set_list_state(movieId: str, state: int, deviceIp: str = "100.87.89.52"
     title, img_url, sub = fetch_movie_details(movieId)
     
     cmd = [
-        "adb", "-s", f"{deviceIp}:5555", "shell", "am", "broadcast", "-a", "com.gimytv.horror.UPDATE_LIST",
+        "adb", "-s", f"{deviceIp}:5555", "shell", "am", "broadcast", "-a", "com.gimytv.horror.UPDATE_LIST", "-p", "com.gimytv.horror",
         "-e", "movieId", f"'{movieId}'",
         "--ei", "listState", str(state)
     ]
